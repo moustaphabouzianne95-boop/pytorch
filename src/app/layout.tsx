@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Cairo } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -13,25 +13,33 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["arabic", "latin"],
+});
+
 export const metadata: Metadata = {
-  title: "Z.ai Code Scaffold - AI-Powered Development",
-  description: "Modern Next.js scaffold optimized for AI-powered development with Z.ai. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
-  authors: [{ name: "Z.ai Team" }],
+  title: "PyTorch — المنصة التفاعلية | ميزات، تعلّم، ملعب شبكات عصبية",
+  description:
+    "منصة تفاعلية عربية لاستكشاف PyTorch: ميزات الإطار وحالات استخدامه ونظامه البيئي، مركز تعلّم تفاعلي، ملعب شبكات عصبية يعمل في المتصفح، لوحة بيانات المساهمات، ومرجع API قابل للبحث.",
+  keywords: [
+    "PyTorch",
+    "تعلم الآلة",
+    "الشبكات العصبية",
+    "Deep Learning",
+    "Autograd",
+    "CUDA",
+    "TorchScript",
+  ],
+  authors: [{ name: "Z.ai Code" }],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
   openGraph: {
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
+    title: "PyTorch — المنصة التفاعلية",
+    description: "استكشف PyTorch: ميزات، تعلّم تفاعلي، ملعب شبكات عصبية، لوحة مساهمات، ومرجع API.",
+    siteName: "PyTorch Interactive",
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
   },
 };
 
@@ -41,9 +49,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
       >
         {children}
         <Toaster />
