@@ -249,3 +249,17 @@ Work Log:
 Stage Summary:
 - Repository live at https://github.com/moustaphabouzianne95-boop/pytorch (branch main, empty repo -> initial publish).
 - .env contains only a local DATABASE_URL path; no secrets pushed. Advised user to revoke the shared PAT.
+
+---
+Task ID: 8
+Agent: main (Z.ai Code)
+Task: Add a bilingual README with screenshots + MIT license to the GitHub repo.
+
+Work Log:
+- Captured 7 screenshots via agent-browser at 1440x900: hero/learning-hub/playground/dashboard/api-explorer in EN, hero + playground in AR RTL (docs/screenshots/01..07*.png).
+- Wrote README.md: bilingual (LTR English + RTL Arabic sections), shields.io badges, screenshot tables, feature walkthrough of all 5 sections, getting-started (bun/npm), project structure, tech stack.
+- Added MIT LICENSE (referenced by README).
+- Commit 0e921a6 pushed to main; verified raw README + screenshot URLs return HTTP 200 and the GitHub repo page renders the README with embedded images correctly.
+
+Stage Summary:
+- Repo now presents a full bilingual landing README at https://github.com/moustaphabouzianne95-boop/pytorch; 8 commits on main. Token still not persisted anywhere locally.
