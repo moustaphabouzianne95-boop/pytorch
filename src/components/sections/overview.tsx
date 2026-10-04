@@ -130,7 +130,7 @@ export function OverviewSection({ onNavigate }: OverviewSectionProps) {
           >
             <div className="relative overflow-hidden rounded-2xl border border-primary/20 shadow-2xl shadow-primary/10">
               <Image
-                src="/images/hero-network.png"
+                src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/images/hero-network.png`}
                 alt={t(
                   "Artistic render of a neural network in PyTorch flame orange",
                   "تمثيل فني لشبكة عصبية بألوان لهب PyTorch البرتقالية"
