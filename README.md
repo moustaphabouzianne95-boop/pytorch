@@ -4,6 +4,10 @@
 
 **A stunning bilingual (English / العربية) showcase, learning hub, and in-browser neural network playground for the PyTorch ecosystem — built with Next.js 16.**
 
+[![Live Demo](https://img.shields.io/badge/🔴_Live_Demo-GitHub_Pages-ee4c2c?style=for-the-badge)](https://moustaphabouzianne95-boop.github.io/pytorch/)
+
+> 🌐 **Try it now:** <https://moustaphabouzianne95-boop.github.io/pytorch/> — fully static, no server required.
+
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss)](https://tailwindcss.com)
@@ -126,6 +130,17 @@ src/
 | Charts | Recharts |
 | Animation | Framer Motion |
 | ML Engine | Custom pure-TypeScript backpropagation (zero dependencies) |
+
+## 🌐 Deployment (GitHub Pages)
+
+The site is **fully static-exported** and auto-deployed:
+
+- On every push to `main`, the GitHub Action [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) runs `bun run build:static` (`STATIC_EXPORT=1 next build`) which:
+  - exports the app to pure HTML/JS/CSS in `out/` with `basePath: /pytorch`
+  - evaluates the GET-only API routes at **build time** into static JSON files (`out/api/lessons`, `out/api/docs`, `out/api/contributions`)
+- The artifact is published to **https://moustaphabouzianne95-boop.github.io/pytorch/**
+
+To run the export locally: `bun run build:static`, then serve the `out/` folder behind a `/pytorch/` path.
 
 ## 🤝 Contributing
 

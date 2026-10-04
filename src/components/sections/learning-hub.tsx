@@ -108,7 +108,7 @@ export default function LearningHubSection() {
   const load = useCallback(async () => {
     setStatus("loading");
     try {
-      const res = await fetch("/api/lessons");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/lessons`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { lessons: Lesson[] };
       setLessons(data.lessons);

@@ -56,3 +56,6 @@ server.log
 db/*.db
 tool-results/
 download/
+
+# static export output
+/out/

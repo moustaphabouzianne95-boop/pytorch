@@ -778,7 +778,7 @@ export default function DashboardSection() {
   useEffect(() => {
     const ctrl = new AbortController();
 
-    fetch("/api/contributions", { signal: ctrl.signal })
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/contributions`, { signal: ctrl.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return (await res.json()) as ContributionsData;

@@ -509,7 +509,7 @@ export default function ApiExplorerSection() {
   /* Fetch docs from the REST API (state updates only inside async callbacks) */
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/docs")
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/docs`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { groups?: DocGroup[] };
