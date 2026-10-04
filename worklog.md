@@ -233,3 +233,19 @@ Work Log:
 Stage Summary:
 - The platform is now fully bilingual EN/AR with instant switching, RTL↔LTR flip, persisted preference, and language-aware fonts (Cairo ↔ Inter). Arabic content untouched; English added in parallel fields/dictionaries.
 - Verified end-to-end in the browser on desktop and mobile. Task complete.
+
+---
+Task ID: 7
+Agent: main (Z.ai Code)
+Task: Upload the finished bilingual PyTorch platform to GitHub (moustaphabouzianne95-boop/pytorch).
+
+Work Log:
+- Inspected git state: main branch already committed (previous build tasks), no remote, no stored GitHub credentials.
+- Cleanup commit af0881c: untracked local runtime artifacts (.env, db/custom.db, tool-results/, download/) and extended .gitignore — 107 source files remain tracked.
+- Verified app end-to-end before publishing: dev server 200 on /, agent-browser render check (dark PyTorch theme, all sections, sticky footer, no console errors), EN->AR toggle switches title + dir=rtl/lang=ar.
+- Added remote origin, pushed main with user-provided PAT (token used once, never persisted to disk/config).
+- Verified sync: remote refs/heads/main == local main == af0881c.
+
+Stage Summary:
+- Repository live at https://github.com/moustaphabouzianne95-boop/pytorch (branch main, empty repo -> initial publish).
+- .env contains only a local DATABASE_URL path; no secrets pushed. Advised user to revoke the shared PAT.
