@@ -41,6 +41,7 @@ import {
 } from "recharts";
 import { SectionHeader } from "@/components/site/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { ContributionsData, FlakyTest, RecentPR } from "@/lib/types";
 
@@ -104,20 +105,22 @@ type StatKey = "stars" | "forks" | "contributors" | "openIssues" | "openPRs" | "
 interface KpiDef {
   key: StatKey;
   label: string;
+  labelEn: string;
   icon: LucideIcon;
   color: string;
   format: (n: number) => string;
 }
 
 const KPI_DEFS: KpiDef[] = [
-  { key: "stars", label: "نجوم GitHub", icon: Star, color: "text-amber-400", format: fmt },
-  { key: "forks", label: "فورك", icon: GitFork, color: "text-primary", format: fmt },
-  { key: "contributors", label: "مساهمون", icon: Users, color: "text-primary", format: fmt },
-  { key: "openIssues", label: "مشاكل مفتوحة", icon: CircleDot, color: "text-rose-400", format: fmt },
-  { key: "openPRs", label: "طلبات دمج مفتوحة", icon: GitPullRequest, color: "text-emerald-400", format: fmt },
+  { key: "stars", label: "نجوم GitHub", labelEn: "GitHub Stars", icon: Star, color: "text-amber-400", format: fmt },
+  { key: "forks", label: "فورك", labelEn: "Forks", icon: GitFork, color: "text-primary", format: fmt },
+  { key: "contributors", label: "مساهمون", labelEn: "Contributors", icon: Users, color: "text-primary", format: fmt },
+  { key: "openIssues", label: "مشاكل مفتوحة", labelEn: "Open issues", icon: CircleDot, color: "text-rose-400", format: fmt },
+  { key: "openPRs", label: "طلبات دمج مفتوحة", labelEn: "Open PRs", icon: GitPullRequest, color: "text-emerald-400", format: fmt },
   {
     key: "coverage",
     label: "تغطية الاختبارات",
+    labelEn: "Test coverage",
     icon: ShieldCheck,
     color: "text-emerald-400",
     format: (n) => `${n.toFixed(1)}%`,
@@ -126,22 +129,41 @@ const KPI_DEFS: KpiDef[] = [
 
 // ─── Status maps ───
 
-const FLAKY_STATUS: Record<FlakyTest["status"], { label: string; className: string }> = {
-  investigating: { label: "يُحقَّق", className: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
-  open: { label: "مفتوح", className: "border-rose-500/40 bg-rose-500/10 text-rose-400" },
-  fixed: { label: "أُصلح", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" },
+const FLAKY_STATUS: Record<FlakyTest["status"], { label: string; labelEn: string; className: string }> = {
+  investigating: { label: "يُحقَّق", labelEn: "Investigating", className: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
+  open: { label: "مفتوح", labelEn: "Open", className: "border-rose-500/40 bg-rose-500/10 text-rose-400" },
+  fixed: { label: "أُصلح", labelEn: "Fixed", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" },
 };
 
-const PR_STATUS: Record<RecentPR["status"], { label: string; className: string; dot: string }> = {
-  merged: { label: "مدموج", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400", dot: "bg-emerald-400" },
-  open: { label: "مفتوح", className: "border-amber-500/40 bg-amber-500/10 text-amber-400", dot: "bg-amber-400" },
+const PR_STATUS: Record<RecentPR["status"], { label: string; labelEn: string; className: string; dot: string }> = {
+  merged: { label: "مدموج", labelEn: "Merged", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400", dot: "bg-emerald-400" },
+  open: { label: "مفتوح", labelEn: "Open", className: "border-amber-500/40 bg-amber-500/10 text-amber-400", dot: "bg-amber-400" },
 };
 
-function rateTone(rate: number): { bar: string; text: string; label: string } {
+function rateTone(rate: number): { bar: string; text: string; label: string; labelEn: string } {
   const pct = rate * 100;
-  if (pct < 2) return { bar: "bg-emerald-500", text: "text-emerald-400", label: "مستقر" };
-  if (pct <= 3) return { bar: "bg-amber-500", text: "text-amber-400", label: "متقلب نوعًا" };
-  return { bar: "bg-rose-500", text: "text-rose-400", label: "متقلب" };
+  if (pct < 2) return { bar: "bg-emerald-500", text: "text-emerald-400", label: "مستقر", labelEn: "Stable" };
+  if (pct <= 3) return { bar: "bg-amber-500", text: "text-amber-400", label: "متقلب نوعًا", labelEn: "Slightly flaky" };
+  return { bar: "bg-rose-500", text: "text-rose-400", label: "متقلب", labelEn: "Flaky" };
+}
+
+// Arabic relative-time strings from src/data/contributions.ts → English
+// equivalents ("منذ ساعتين" style → "2h ago" style). Unknown values fall
+// back to the raw string.
+const RELATIVE_EN: Record<string, string> = {
+  "قبل 40 دقيقة": "40m ago",
+  "قبل ساعة": "1h ago",
+  "قبل ساعتين": "2h ago",
+  "قبل 3 ساعات": "3h ago",
+  "قبل 5 ساعات": "5h ago",
+  "قبل 7 ساعات": "7h ago",
+  "أمس": "yesterday",
+  "قبل يومين": "2d ago",
+  "قبل 3 أيام": "3d ago",
+};
+
+function relativeEn(ar: string): string {
+  return RELATIVE_EN[ar] ?? ar;
 }
 
 // ─── Avatar gradients (deterministic, warm palette) ───
@@ -266,6 +288,7 @@ function DashboardSkeleton() {
 // ─── Error state ───
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const { t } = useLanguage();
   return (
     <motion.div
       {...fadeUp}
@@ -275,13 +298,16 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10">
         <TriangleAlert className="h-7 w-7 text-rose-400" aria-hidden />
       </span>
-      <h3 className="text-lg font-bold">تعذّر تحميل بيانات اللوحة</h3>
+      <h3 className="text-lg font-bold">{t("Failed to load dashboard data", "تعذّر تحميل بيانات اللوحة")}</h3>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        حدث خطأ أثناء جلب بيانات المساهمات من الخادم
+        {t(
+          "An error occurred while fetching the contributions data from the server",
+          "حدث خطأ أثناء جلب بيانات المساهمات من الخادم"
+        )}
         <span className="mx-1 font-mono text-rose-400" dir="ltr">
           ({message})
         </span>
-        — تحقّق من الاتصال ثم أعد المحاولة.
+        {t("— check your connection and try again.", "— تحقّق من الاتصال ثم أعد المحاولة.")}
       </p>
       <button
         type="button"
@@ -289,7 +315,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
         className="mt-1 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
       >
         <RefreshCw className="h-4 w-4" aria-hidden />
-        إعادة المحاولة
+        {t("Retry", "إعادة المحاولة")}
       </button>
     </motion.div>
   );
@@ -298,6 +324,10 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 // ─── Main dashboard content ───
 
 function DashboardContent({ data }: { data: ContributionsData }) {
+  const { t, lang } = useLanguage();
+  // Relative-time strings come pre-computed (Arabic) from the API; pick the
+  // English equivalent map when the UI language is English.
+  const rt = (ar: string) => (lang === "en" ? relativeEn(ar) : ar);
   const { stats, weekly, issuesByArea, contributors, coverage, flakyTests, recentPRs } = data;
 
   return (
@@ -306,11 +336,11 @@ function DashboardContent({ data }: { data: ContributionsData }) {
       <motion.div {...fadeUp} className="mb-4 flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-400">
           <FlaskConical className="h-3.5 w-3.5" aria-hidden />
-          بيانات تجريبية — ليست حية
+          {t("Sample data — not live", "بيانات تجريبية — ليست حية")}
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
           <Tag className="h-3.5 w-3.5 text-primary" aria-hidden />
-          آخر إصدار
+          {t("Latest release", "آخر إصدار")}
           <span className="font-mono font-semibold text-primary" dir="ltr">
             {stats.release}
           </span>
@@ -318,7 +348,7 @@ function DashboardContent({ data }: { data: ContributionsData }) {
       </motion.div>
 
       {/* ─── KPI row ─── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6" role="list" aria-label="مؤشرات الأداء الرئيسية">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6" role="list" aria-label={t("Key performance indicators", "مؤشرات الأداء الرئيسية")}>
         {KPI_DEFS.map((k, i) => (
           <motion.div
             key={k.key}
@@ -328,7 +358,7 @@ function DashboardContent({ data }: { data: ContributionsData }) {
             className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40 sm:p-5"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-muted-foreground">{k.label}</span>
+              <span className="text-xs font-medium text-muted-foreground">{t(k.labelEn, k.label)}</span>
               <k.icon className={cn("h-4 w-4 shrink-0", k.color)} aria-hidden />
             </div>
             <p className="mt-2 font-mono text-xl font-bold text-foreground sm:text-2xl" dir="ltr">
@@ -347,18 +377,18 @@ function DashboardContent({ data }: { data: ContributionsData }) {
         >
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold">النشاط الأسبوعي</h3>
+              <h3 className="text-base font-bold">{t("Weekly activity", "النشاط الأسبوعي")}</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                كوميتات وطلبات دمج ومراجعات عبر آخر 30 أسبوعًا في{" "}
+                {t("Commits, pull requests and reviews across the last 30 weeks in", "كوميتات وطلبات دمج ومراجعات عبر آخر 30 أسبوعًا في")}{" "}
                 <span className="font-mono text-primary/80" dir="ltr">
                   pytorch/pytorch
                 </span>
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              <LegendChip label="كوميتات" color={ORANGE} />
-              <LegendChip label="طلبات الدمج" color={EMERALD} />
-              <LegendChip label="مراجعات" color={AMBER} dashed />
+              <LegendChip label={t("Commits", "كوميتات")} color={ORANGE} />
+              <LegendChip label={t("Pull requests", "طلبات الدمج")} color={EMERALD} />
+              <LegendChip label={t("Reviews", "مراجعات")} color={AMBER} dashed />
             </div>
           </div>
           <div dir="ltr" className="h-[280px] w-full">
@@ -372,7 +402,7 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
                 <XAxis
-                  dataKey="week"
+                  dataKey={lang === "en" ? "weekEn" : "week"}
                   tick={AXIS_TICK}
                   tickLine={false}
                   axisLine={AXIS_LINE}
@@ -390,16 +420,16 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                 <Area
                   type="monotone"
                   dataKey="commits"
-                  name="كوميتات"
+                  name={t("Commits", "كوميتات")}
                   stroke={ORANGE}
                   strokeWidth={2}
                   fill="url(#dash-grad-commits)"
                 />
-                <Line type="monotone" dataKey="prs" name="طلبات الدمج" stroke={EMERALD} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="prs" name={t("Pull requests", "طلبات الدمج")} stroke={EMERALD} strokeWidth={2} dot={false} />
                 <Line
                   type="monotone"
                   dataKey="reviews"
-                  name="مراجعات"
+                  name={t("Reviews", "مراجعات")}
                   stroke={AMBER}
                   strokeWidth={1.5}
                   strokeDasharray="5 4"
@@ -417,9 +447,9 @@ function DashboardContent({ data }: { data: ContributionsData }) {
           className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30 lg:row-span-2"
         >
           <div className="mb-4">
-            <h3 className="text-base font-bold">المشاكل حسب المجال</h3>
+            <h3 className="text-base font-bold">{t("Issues by area", "المشاكل حسب المجال")}</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              عدد المشاكل المفتوحة لكل مجال، مع اتجاه التغيّر مقارنةً بالشهر الماضي.
+              {t("Open issues per area, with the change trend versus last month.", "عدد المشاكل المفتوحة لكل مجال، مع اتجاه التغيّر مقارنةً بالشهر الماضي.")}
             </p>
           </div>
           <div dir="ltr" className="h-[340px] w-full flex-1">
@@ -435,7 +465,7 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                 <XAxis type="number" tick={AXIS_TICK} tickLine={false} axisLine={AXIS_LINE} allowDecimals={false} />
                 <YAxis
                   type="category"
-                  dataKey="area"
+                  dataKey={lang === "en" ? "areaEn" : "area"}
                   tick={AXIS_TICK_MONO}
                   tickLine={false}
                   axisLine={false}
@@ -444,7 +474,7 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                 <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={TOOLTIP_LABEL} cursor={TOOLTIP_CURSOR} />
                 <Bar
                   dataKey="count"
-                  name="مشاكل مفتوحة"
+                  name={t("Open issues", "مشاكل مفتوحة")}
                   fill="url(#dash-grad-issues)"
                   radius={[0, 4, 4, 0]}
                   barSize={14}
@@ -459,10 +489,10 @@ function DashboardContent({ data }: { data: ContributionsData }) {
             {issuesByArea.map((a) => (
               <span
                 key={a.area}
-                title={a.trend >= 0 ? "زيادة في عدد المشاكل" : "خفض في عدد المشاكل"}
+                title={a.trend >= 0 ? t("Issue count rising", "زيادة في عدد المشاكل") : t("Issue count falling", "خفض في عدد المشاكل")}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-2 py-1 font-mono text-[10px] text-muted-foreground"
               >
-                {a.area}
+                {t(a.areaEn, a.area)}
                 <span
                   className={cn(
                     "inline-flex items-center gap-0.5 font-semibold",
@@ -485,14 +515,15 @@ function DashboardContent({ data }: { data: ContributionsData }) {
         >
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold">تغطية الاختبارات</h3>
+              <h3 className="text-base font-bold">{t("Test coverage", "تغطية الاختبارات")}</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                النسبة الشهرية مقابل الهدف <span className="font-mono" dir="ltr">88%</span> — تتّجه للأفضل.
+                {t("Monthly percentage against the", "النسبة الشهرية مقابل الهدف")} <span className="font-mono" dir="ltr">88%</span>{" "}
+                {t("target — trending in the right direction.", "— تتّجه للأفضل.")}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              <LegendChip label="التغطية" color={ORANGE} />
-              <LegendChip label="الهدف" color={AMBER} dashed />
+              <LegendChip label={t("Coverage", "التغطية")} color={ORANGE} />
+              <LegendChip label={t("Target", "الهدف")} color={AMBER} dashed />
             </div>
           </div>
           <div dir="ltr" className="h-[220px] w-full">
@@ -500,7 +531,7 @@ function DashboardContent({ data }: { data: ContributionsData }) {
               <LineChart data={coverage} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
                 <XAxis
-                  dataKey="month"
+                  dataKey={lang === "en" ? "monthEn" : "month"}
                   tick={AXIS_TICK}
                   tickLine={false}
                   axisLine={AXIS_LINE}
@@ -521,12 +552,12 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                   y={88}
                   stroke={AMBER}
                   strokeDasharray="6 4"
-                  label={{ value: "هدف 88%", fill: AMBER, fontSize: 10, position: "insideTopRight" }}
+                  label={{ value: t("88% target", "هدف 88%"), fill: AMBER, fontSize: 10, position: "insideTopRight" }}
                 />
                 <Line
                   type="monotone"
                   dataKey="coverage"
-                  name="التغطية %"
+                  name={t("Coverage %", "التغطية %")}
                   stroke={ORANGE}
                   strokeWidth={2.5}
                   dot={{ r: 3, fill: ORANGE, strokeWidth: 0 }}
@@ -543,14 +574,14 @@ function DashboardContent({ data }: { data: ContributionsData }) {
         {/* Contributors leaderboard */}
         <motion.section
           {...fadeUp}
-          aria-label="لوحة صدارة المساهمين"
+          aria-label={t("Contributors leaderboard", "لوحة صدارة المساهمين")}
           className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30"
         >
           <CardHeader
             icon={Users}
-            title="لوحة صدارة المساهمين"
-            hint="الأكثر نشاطًا حسب الكوميتات والمراجعات."
-            count={`أفضل ${contributors.length}`}
+            title={t("Contributors leaderboard", "لوحة صدارة المساهمين")}
+            hint={t("Most active contributors by commits and reviews.", "الأكثر نشاطًا حسب الكوميتات والمراجعات.")}
+            count={t(`Top ${contributors.length}`, `أفضل ${contributors.length}`)}
           />
           <ul className="-mx-2 max-h-[24rem] flex-1 list-none overflow-y-auto px-2 scrollbar-thin">
             {contributors.map((c, i) => (
@@ -575,22 +606,22 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                     <span className="truncate font-mono text-sm font-semibold text-foreground" dir="ltr">
                       {c.handle}
                     </span>
-                    {i === 0 && <Crown className="h-4 w-4 shrink-0 text-amber-400" aria-label="المساهم الأول" />}
+                    {i === 0 && <Crown className="h-4 w-4 shrink-0 text-amber-400" aria-label={t("Top contributor", "المساهم الأول")} />}
                   </div>
                   <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
                     <span className="truncate">{c.name}</span>
                     <span aria-hidden>·</span>
                     <span dir="ltr" className="shrink-0 font-mono text-[10px] text-primary/70">
-                      {c.focus}
+                      {t(c.focusEn, c.focus)}
                     </span>
                   </p>
                 </div>
                 <div className="grid shrink-0 grid-cols-3 gap-2 text-center sm:gap-3">
                   {(
                     [
-                      ["كوميت", c.commits],
-                      ["دمج", c.prs],
-                      ["مراجعة", c.reviews],
+                      [t("Commits", "كوميت"), c.commits],
+                      [t("PRs", "دمج"), c.prs],
+                      [t("Reviews", "مراجعة"), c.reviews],
                     ] as const
                   ).map(([label, v]) => (
                     <div key={label}>
@@ -610,28 +641,28 @@ function DashboardContent({ data }: { data: ContributionsData }) {
         <motion.section
           {...fadeUp}
           transition={{ ...fadeUp.transition, delay: 0.08 }}
-          aria-label="اختبارات متقلبة"
+          aria-label={t("Flaky tests", "اختبارات متقلبة")}
           className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30"
         >
           <CardHeader
             icon={FlaskConical}
-            title="اختبارات متقلبة تحت المراقبة"
-            hint="نسبة الفشل التقديرية لكل اختبار في دورة CI."
-            count={`${flakyTests.length} اختبارات`}
+            title={t("Flaky tests under watch", "اختبارات متقلبة تحت المراقبة")}
+            hint={t("Estimated failure rate per test across CI runs.", "نسبة الفشل التقديرية لكل اختبار في دورة CI.")}
+            count={t(`${flakyTests.length} tests`, `${flakyTests.length} اختبارات`)}
           />
           <ul className="-mx-2 flex-1 list-none px-2">
-            {flakyTests.map((t) => {
-              const tone = rateTone(t.failureRate);
-              const status = FLAKY_STATUS[t.status];
+            {flakyTests.map((ft) => {
+              const tone = rateTone(ft.failureRate);
+              const status = FLAKY_STATUS[ft.status];
               return (
-                <li key={t.name} className="border-b border-border/60 py-3 last:border-0">
+                <li key={ft.name} className="border-b border-border/60 py-3 last:border-0">
                   <div className="flex items-center justify-between gap-2">
                     <span
                       className="min-w-0 truncate font-mono text-xs text-foreground"
                       dir="ltr"
-                      title={t.name}
+                      title={ft.name}
                     >
-                      {t.name}
+                      {ft.name}
                     </span>
                     <span
                       className={cn(
@@ -639,30 +670,30 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                         status.className
                       )}
                     >
-                      {status.label}
+                      {t(status.labelEn, status.label)}
                     </span>
                   </div>
                   <div className="mt-2 flex items-center gap-2">
-                    <AreaChip label={t.area} />
+                    <AreaChip label={t(ft.areaEn, ft.area)} />
                     <div
                       className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary"
                       role="meter"
-                      aria-valuenow={Math.round(t.failureRate * 1000) / 10}
+                      aria-valuenow={Math.round(ft.failureRate * 1000) / 10}
                       aria-valuemin={0}
                       aria-valuemax={100}
-                      aria-label={`نسبة فشل ${t.name}`}
+                      aria-label={t(`Failure rate of ${ft.name}`, `نسبة فشل ${ft.name}`)}
                     >
                       <div
                         className={cn("h-full rounded-full", tone.bar)}
-                        style={{ width: `${Math.min(100, t.failureRate * 2000)}%` }}
+                        style={{ width: `${Math.min(100, ft.failureRate * 2000)}%` }}
                       />
                     </div>
                     <span className={cn("shrink-0 font-mono text-xs font-semibold", tone.text)} dir="ltr">
-                      {(t.failureRate * 100).toFixed(1)}%
+                      {(ft.failureRate * 100).toFixed(1)}%
                     </span>
                   </div>
                   <p className="mt-1.5 text-[11px] text-muted-foreground">
-                    آخر فشل: {t.lastFailed} · <span className={tone.text}>{tone.label}</span>
+                    {t("Last failed:", "آخر فشل:")} {rt(ft.lastFailed)} · <span className={tone.text}>{t(tone.labelEn, tone.label)}</span>
                   </p>
                 </li>
               );
@@ -674,14 +705,14 @@ function DashboardContent({ data }: { data: ContributionsData }) {
         <motion.section
           {...fadeUp}
           transition={{ ...fadeUp.transition, delay: 0.16 }}
-          aria-label="أحدث طلبات الدمج"
+          aria-label={t("Recent pull requests", "أحدث طلبات الدمج")}
           className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30"
         >
           <CardHeader
             icon={GitPullRequest}
-            title="أحدث طلبات الدمج"
-            hint="آخر النشاطات في المستودع مع حجم التغييرات."
-            count={`${recentPRs.length} طلبات`}
+            title={t("Recent pull requests", "أحدث طلبات الدمج")}
+            hint={t("Latest repository activity with change sizes.", "آخر النشاطات في المستودع مع حجم التغييرات.")}
+            count={t(`${recentPRs.length} PRs`, `${recentPRs.length} طلبات`)}
           />
           <ul className="-mx-2 max-h-[24rem] flex-1 list-none overflow-y-auto px-2 scrollbar-thin">
             {recentPRs.map((pr) => {
@@ -699,7 +730,7 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                       <span className="font-mono text-xs text-primary/90" dir="ltr">
                         @{pr.author}
                       </span>
-                      <AreaChip label={pr.area} />
+                      <AreaChip label={t(pr.areaEn, pr.area)} />
                       <span
                         className={cn(
                           "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
@@ -707,9 +738,9 @@ function DashboardContent({ data }: { data: ContributionsData }) {
                         )}
                       >
                         <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
-                        {status.label}
+                        {t(status.labelEn, status.label)}
                       </span>
-                      <span className="text-[11px] text-muted-foreground">{pr.mergedAt}</span>
+                      <span className="text-[11px] text-muted-foreground">{rt(pr.mergedAt)}</span>
                     </div>
                   </div>
                   <span className="shrink-0 pt-0.5 font-mono text-[11px]" dir="ltr">
@@ -729,6 +760,8 @@ function DashboardContent({ data }: { data: ContributionsData }) {
 // ─── Section entry ───
 
 export default function DashboardSection() {
+  const { t } = useLanguage();
+
   type FetchState =
     | { status: "loading" }
     | { status: "error"; message: string }
@@ -760,11 +793,14 @@ export default function DashboardSection() {
   }, [reloadKey]);
 
   return (
-    <section aria-label="لوحة بيانات المساهمات" className="mx-auto w-full max-w-7xl px-4 py-16 sm:py-20">
+    <section aria-label={t("Contributions dashboard", "لوحة بيانات المساهمات")} className="mx-auto w-full max-w-7xl px-4 py-16 sm:py-20">
       <SectionHeader
-        badge="بيانات تجريبية"
-        title="لوحة بيانات المساهمات"
-        description="نموذج واقعي لنشاط مستودع pytorch/pytorch: كوميتات أسبوعية، توزيع المشاكل، تغطية الاختبارات، لوحة صدارة المساهمين، واختبارات متقلبة — أرقام تجريبية مولّدة بأنماط قريبة من الواقع، وليست بيانات حية من GitHub."
+        badge={t("Sample data", "بيانات تجريبية")}
+        title={t("Contributions Dashboard", "لوحة بيانات المساهمات")}
+        description={t(
+          "A realistic model of pytorch/pytorch repository activity: weekly commits, issue distribution, test coverage, a contributors leaderboard, and flaky tests — demo numbers generated with lifelike patterns, not live data from GitHub.",
+          "نموذج واقعي لنشاط مستودع pytorch/pytorch: كوميتات أسبوعية، توزيع المشاكل، تغطية الاختبارات، لوحة صدارة المساهمين، واختبارات متقلبة — أرقام تجريبية مولّدة بأنماط قريبة من الواقع، وليست بيانات حية من GitHub."
+        )}
         icon={BarChart3}
       />
 

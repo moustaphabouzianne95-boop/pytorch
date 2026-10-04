@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
+import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { DecisionCanvas, LossCanvas, NetworkGraph } from "./playground-canvas";
 import {
@@ -100,6 +101,8 @@ const INITIAL_FLAGS: Record<FeatureKey, boolean> = {
 };
 
 export default function PlaygroundSection() {
+  const { t } = useLanguage();
+
   // ─── Config state ───
   const [dataset, setDataset] = useState<DatasetId>("circles");
   const [noise, setNoise] = useState(0);
@@ -227,11 +230,11 @@ export default function PlaygroundSection() {
   }, []);
 
   const stats = [
-    { label: "الحقبة", value: frame.epoch.toLocaleString("en-US"), cls: "text-foreground" },
-    { label: "خسارة التدريب", value: frame.trainLoss.toFixed(3), cls: "text-primary" },
-    { label: "خسارة الاختبار", value: frame.testLoss.toFixed(3), cls: "text-emerald-400" },
+    { label: t("Epoch", "الحقبة"), value: frame.epoch.toLocaleString("en-US"), cls: "text-foreground" },
+    { label: t("Train loss", "خسارة التدريب"), value: frame.trainLoss.toFixed(3), cls: "text-primary" },
+    { label: t("Test loss", "خسارة الاختبار"), value: frame.testLoss.toFixed(3), cls: "text-emerald-400" },
     {
-      label: "دقة الاختبار",
+      label: t("Test accuracy", "دقة الاختبار"),
       value: `${(frame.testAcc * 100).toFixed(1)}%`,
       cls: "text-amber-400",
     },
@@ -241,9 +244,12 @@ export default function PlaygroundSection() {
     <section className="border-y border-border bg-card/30 py-20">
       <div className="mx-auto w-full max-w-7xl px-4">
         <SectionHeader
-          badge="الملعب العصبي"
-          title="شاهد الشبكة تتعلّم أمامك"
-          description="شبكة عصبية حقيقية بحجم مصغّر تُدرَّب بالكامل داخل متصفحك بالانتشار العكسي — بلا خادم وبلا GPU. اختر البيانات والمعاملات، ثم شاهد حدود القرار تتشكّل لحظة بلحظة."
+          badge={t("Neural Playground", "الملعب العصبي")}
+          title={t("Watch the network learn before your eyes", "شاهد الشبكة تتعلّم أمامك")}
+          description={t(
+            "A real miniature neural network trained entirely in your browser with backpropagation — no server, no GPU. Pick the data and hyperparameters, then watch the decision boundary take shape moment by moment.",
+            "شبكة عصبية حقيقية بحجم مصغّر تُدرَّب بالكامل داخل متصفحك بالانتشار العكسي — بلا خادم وبلا GPU. اختر البيانات والمعاملات، ثم شاهد حدود القرار تتشكّل لحظة بلحظة."
+          )}
           icon={FlaskConical}
         />
 
@@ -253,16 +259,16 @@ export default function PlaygroundSection() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
-                الإعدادات
+                {t("Settings", "الإعدادات")}
               </CardTitle>
               <CardDescription className="text-xs">
-                البيانات، المعاملات، وبنية الشبكة
+                {t("Data, hyperparameters, and network architecture", "البيانات، المعاملات، وبنية الشبكة")}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
               {/* Dataset */}
               <div className="flex flex-col gap-2">
-                <Label className="text-xs text-muted-foreground">البيانات</Label>
+                <Label className="text-xs text-muted-foreground">{t("Dataset", "البيانات")}</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {DATASETS.map((d) => (
                     <button
@@ -277,7 +283,7 @@ export default function PlaygroundSection() {
                           : "border-border bg-background/50 text-muted-foreground hover:border-primary/30 hover:text-foreground"
                       )}
                     >
-                      {d.label}
+                      {t(d.labelEn, d.label)}
                     </button>
                   ))}
                 </div>
@@ -286,14 +292,14 @@ export default function PlaygroundSection() {
               {/* Noise */}
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">التشويش</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Noise", "التشويش")}</Label>
                   <span dir="ltr" className="font-mono text-xs font-semibold text-primary">
                     {Math.round(noise * 100)}%
                   </span>
                 </div>
                 <div dir="ltr">
                   <Slider
-                    aria-label="نسبة التشويش"
+                    aria-label={t("Noise level", "نسبة التشويش")}
                     min={0}
                     max={30}
                     step={1}
@@ -306,9 +312,9 @@ export default function PlaygroundSection() {
               {/* LR + activation */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">معدل التعلم</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Learning rate", "معدل التعلم")}</Label>
                   <Select value={String(lr)} onValueChange={(v) => setLr(Number(v))}>
-                    <SelectTrigger className="w-full" aria-label="معدل التعلم">
+                    <SelectTrigger className="w-full" aria-label={t("Learning rate", "معدل التعلم")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -323,12 +329,12 @@ export default function PlaygroundSection() {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">دالة التنشيط</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Activation", "دالة التنشيط")}</Label>
                   <Select
                     value={activation}
                     onValueChange={(v) => setActivation(v as Activation)}
                   >
-                    <SelectTrigger className="w-full" aria-label="دالة التنشيط">
+                    <SelectTrigger className="w-full" aria-label={t("Activation", "دالة التنشيط")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -347,13 +353,13 @@ export default function PlaygroundSection() {
               {/* Features */}
               <div className="flex flex-col gap-2">
                 <Label className="text-xs text-muted-foreground">
-                  خصائص المدخل <span dir="ltr" className="font-mono">(x, y)</span>
+                  {t("Input features", "خصائص المدخل")} <span dir="ltr" className="font-mono">(x, y)</span>
                 </Label>
                 <div className="grid grid-cols-2 gap-2">
                   {ALL_FEATURES.map((f) => (
                     <label
                       key={f.key}
-                      title={f.locked ? "مثبّتة — تُستخدم دائمًا" : undefined}
+                      title={f.locked ? t("Locked — always used", "مثبّتة — تُستخدم دائمًا") : undefined}
                       className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-lg border border-border bg-background/50 px-2.5 py-2 transition-colors hover:border-primary/30"
                     >
                       <Checkbox
@@ -362,7 +368,7 @@ export default function PlaygroundSection() {
                         onCheckedChange={(v) =>
                           setFlags((prev) => ({ ...prev, [f.key]: v === true }))
                         }
-                        aria-label={`الخاصية ${f.label}`}
+                        aria-label={t(`Feature ${f.label}`, `الخاصية ${f.label}`)}
                       />
                       <span dir="ltr" className="font-mono text-xs text-foreground">
                         {f.label}
@@ -377,7 +383,7 @@ export default function PlaygroundSection() {
               {/* Hidden layers editor */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">الطبقات المخفية</Label>
+                  <Label className="text-xs text-muted-foreground">{t("Hidden layers", "الطبقات المخفية")}</Label>
                   <span dir="ltr" className="font-mono text-[11px] text-muted-foreground">
                     {hidden.length}/4
                   </span>
@@ -392,13 +398,13 @@ export default function PlaygroundSection() {
                         <button
                           type="button"
                           onClick={() => removeLayer(i)}
-                          aria-label={`حذف الطبقة ${i + 1}`}
+                          aria-label={t(`Remove layer ${i + 1}`, `حذف الطبقة ${i + 1}`)}
                           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-400"
                         >
                           <X className="h-4 w-4" />
                         </button>
                         <span className="text-[10px] font-medium text-muted-foreground">
-                          طبقة {i + 1}
+                          {t(`Layer ${i + 1}`, `طبقة ${i + 1}`)}
                         </span>
                       </div>
                       <div className="flex flex-col gap-1" aria-hidden>
@@ -419,7 +425,7 @@ export default function PlaygroundSection() {
                           type="button"
                           onClick={() => changeNeurons(i, 1)}
                           disabled={n >= 8}
-                          aria-label={`إضافة عصبون للطبقة ${i + 1}`}
+                          aria-label={t(`Add neuron to layer ${i + 1}`, `إضافة عصبون للطبقة ${i + 1}`)}
                           className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
                         >
                           <Plus className="h-4 w-4" />
@@ -428,7 +434,7 @@ export default function PlaygroundSection() {
                           type="button"
                           onClick={() => changeNeurons(i, -1)}
                           disabled={n <= 1}
-                          aria-label={`حذف عصبون من الطبقة ${i + 1}`}
+                          aria-label={t(`Remove neuron from layer ${i + 1}`, `حذف عصبون من الطبقة ${i + 1}`)}
                           className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
                         >
                           <Minus className="h-4 w-4" />
@@ -443,7 +449,7 @@ export default function PlaygroundSection() {
                       className="flex min-h-[44px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-primary/40 px-4 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
                     >
                       <Plus className="h-4 w-4" />
-                      طبقة
+                      {t("Layer", "طبقة")}
                     </button>
                   )}
                 </div>
@@ -456,11 +462,12 @@ export default function PlaygroundSection() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Brain className="h-4 w-4 text-primary" />
-                لوحة التدريب الحيّة
+                {t("Live training board", "لوحة التدريب الحيّة")}
               </CardTitle>
               <CardDescription className="text-xs">
-                شبكة <span dir="ltr" className="font-mono">MLP</span> تتعلّم بالانتشار العكسي
-                داخل المتصفح — البرتقالي ضد الزمردي
+                {t("An ", "شبكة ")}
+                <span dir="ltr" className="font-mono">MLP</span>
+                {t(" learning via backpropagation inside your browser — orange vs. emerald", " تتعلّم بالانتشار العكسي داخل المتصفح — البرتقالي ضد الزمردي")}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
@@ -490,7 +497,7 @@ export default function PlaygroundSection() {
                   className="h-11 min-h-[44px] flex-1 px-5 font-semibold sm:flex-none"
                 >
                   {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {running ? "إيقاف مؤقت" : "تشغيل التدريب"}
+                  {running ? t("Pause", "إيقاف مؤقت") : t("Run training", "تشغيل التدريب")}
                 </Button>
                 <Button
                   size="lg"
@@ -500,7 +507,7 @@ export default function PlaygroundSection() {
                   className="h-11 min-h-[44px]"
                 >
                   <StepForward className="h-4 w-4" />
-                  خطوة واحدة
+                  {t("Step once", "خطوة واحدة")}
                 </Button>
                 <Button
                   size="lg"
@@ -509,7 +516,7 @@ export default function PlaygroundSection() {
                   className="h-11 min-h-[44px]"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  إعادة تعيين
+                  {t("Reset", "إعادة تعيين")}
                 </Button>
               </div>
 
@@ -521,34 +528,35 @@ export default function PlaygroundSection() {
                     gridSize={frame.gridSize}
                     points={frame.points}
                     preds={frame.preds}
+                    ariaLabel={t("Decision boundary and data points", "لوحة حدود القرار ونقاط البيانات")}
                   />
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <span className="size-2.5 rounded-full bg-[#f97316]" />
-                    الفئة 1
+                    {t("Class 1", "الفئة 1")}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="size-2.5 rounded-full bg-[#10b981]" />
-                    الفئة 0
+                    {t("Class 0", "الفئة 0")}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="size-2.5 rounded-full border-2 border-[#fb7185]" />
-                    تصنيف خاطئ
+                    {t("Misclassified", "تصنيف خاطئ")}
                   </span>
                 </div>
               </div>
 
               <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
-                المحرك مكتوب بـ{" "}
+                {t("The engine is written in ", "المحرك مكتوب بـ ")}
                 <span dir="ltr" className="font-mono">
                   TypeScript
-                </span>{" "}
-                من الصفر ويحاكي مبدأ{" "}
+                </span>
+                {t(" from scratch and emulates the principle of ", " من الصفر ويحاكي مبدأ ")}
                 <span dir="ltr" className="font-mono">
                   autograd
-                </span>{" "}
-                — للتعليم فقط
+                </span>
+                {t(" — for education only", " — للتعليم فقط")}
               </p>
             </CardContent>
           </Card>
@@ -558,30 +566,40 @@ export default function PlaygroundSection() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <TrendingDown className="h-4 w-4 text-primary" />
-                منحنى الخسارة
+                {t("Loss curve", "منحنى الخسارة")}
               </CardTitle>
               <CardDescription className="text-xs">
-                آخر <span dir="ltr" className="font-mono">100</span> حقبة — تدريب/اختبار
+                {t("Last ", "آخر ")}
+                <span dir="ltr" className="font-mono">100</span>
+                {t(" epochs — train/test", " حقبة — تدريب/اختبار")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[150px] w-full">
-                <LossCanvas history={frame.history} />
+                <LossCanvas
+                  history={frame.history}
+                  ariaLabel={t("Training and test loss curve", "منحنى خسارة التدريب والاختبار")}
+                  trainLabel={t("train", "تدريب")}
+                  testLabel={t("test", "اختبار")}
+                />
               </div>
             </CardContent>
             <Separator />
             <div className="flex flex-col gap-3 px-6 pb-6">
               <div className="flex items-center gap-2">
                 <Network className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">بنية الشبكة والأوزان</h3>
+                <h3 className="text-sm font-semibold">{t("Network architecture and weights", "بنية الشبكة والأوزان")}</h3>
               </div>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                سماكة الوصلة تتناسب مع حجم الوزن، واللون يدل على إشارته.
+                {t("Edge thickness is proportional to the weight magnitude; color indicates its sign.", "سماكة الوصلة تتناسب مع حجم الوزن، واللون يدل على إشارته.")}
               </p>
               <NetworkGraph
                 features={features}
                 hidden={hidden}
                 weights={frame.weights}
+                inputCaption={t("Inputs", "المدخلات")}
+                outputCaption={t("Output", "الناتج")}
+                ariaLabel={t("Neural network topology with live weights", "مخطط بنية الشبكة العصبية والأوزان الحية")}
               />
             </div>
           </Card>

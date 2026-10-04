@@ -49,11 +49,14 @@ export function DecisionCanvas({
   gridSize,
   points,
   preds,
+  ariaLabel,
 }: {
   grid: Float64Array | null;
   gridSize: number;
   points: DataPoint[];
   preds: number[];
+  /** Localized accessible name (passed from playground.tsx). */
+  ariaLabel: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const offRef = useRef<HTMLCanvasElement | null>(null);
@@ -143,7 +146,7 @@ export function DecisionCanvas({
     <canvas
       ref={ref}
       role="img"
-      aria-label="لوحة حدود القرار ونقاط البيانات"
+      aria-label={ariaLabel}
       className="block h-full w-full"
     />
   );
@@ -153,7 +156,19 @@ export function DecisionCanvas({
 
 const LOSS_H = 150;
 
-export const LossCanvas = memo(function LossCanvas({ history }: { history: LossPoint[] }) {
+export const LossCanvas = memo(function LossCanvas({
+  history,
+  ariaLabel,
+  trainLabel,
+  testLabel,
+}: {
+  history: LossPoint[];
+  /** Localized accessible name (passed from playground.tsx). */
+  ariaLabel: string;
+  /** Localized in-canvas legend labels (passed from playground.tsx). */
+  trainLabel: string;
+  testLabel: string;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   const size = useCanvasSize(ref);
 
@@ -217,21 +232,25 @@ export const LossCanvas = memo(function LossCanvas({ history }: { history: LossP
     ctx.stroke();
     ctx.restore();
 
-    // current values
+    // current values — pinned to LTR/left so the localized labels render
+    // identically regardless of the document direction
     const last = history[n - 1];
     ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
     ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.direction = "ltr";
+    const padLabel = (s: string) => s.padEnd(Math.max(trainLabel.length, testLabel.length), " ");
     ctx.fillStyle = "#f97316";
-    ctx.fillText(`train ${last.train.toFixed(3)}`, pad + 2, pad + 8);
+    ctx.fillText(`${padLabel(trainLabel)} ${last.train.toFixed(3)}`, pad + 2, pad + 8);
     ctx.fillStyle = "#10b981";
-    ctx.fillText(`test  ${last.test.toFixed(3)}`, pad + 2, pad + 24);
-  }, [history, size]);
+    ctx.fillText(`${padLabel(testLabel)} ${last.test.toFixed(3)}`, pad + 2, pad + 24);
+  }, [history, size, trainLabel, testLabel]);
 
   return (
     <canvas
       ref={ref}
       role="img"
-      aria-label="منحنى خسارة التدريب والاختبار"
+      aria-label={ariaLabel}
       className="block h-full w-full"
     />
   );
@@ -248,10 +267,18 @@ export const NetworkGraph = memo(function NetworkGraph({
   features,
   hidden,
   weights,
+  inputCaption,
+  outputCaption,
+  ariaLabel,
 }: {
   features: FeatureKey[];
   hidden: number[];
   weights: number[][][] | null;
+  /** Localized column captions (passed from playground.tsx). */
+  inputCaption: string;
+  outputCaption: string;
+  /** Localized accessible name (passed from playground.tsx). */
+  ariaLabel: string;
 }) {
   const cols: number[] = [features.length, ...hidden, 1];
   const colCount = cols.length;
@@ -334,7 +361,7 @@ export const NetworkGraph = memo(function NetworkGraph({
         fontSize="9.5"
         fill="#78716c"
       >
-        {isInput ? "المدخلات" : isOutput ? "الناتج" : String(n)}
+        {isInput ? inputCaption : isOutput ? outputCaption : String(n)}
       </text>
     );
   });
@@ -343,7 +370,7 @@ export const NetworkGraph = memo(function NetworkGraph({
     <svg
       viewBox={`0 0 ${GW} ${GH}`}
       role="img"
-      aria-label="مخطط بنية الشبكة العصبية والأوزان الحية"
+      aria-label={ariaLabel}
       className="h-auto w-full"
     >
       <g>

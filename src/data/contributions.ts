@@ -15,10 +15,17 @@ const MONTHS_AR = [
   "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
 ];
 
+// Short English months for the bilingual (EN) chart ticks.
+const MONTHS_EN = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
 function buildWeekly() {
   const rnd = lcg(20240517);
   const out: ContributionsData["weekly"] = [];
   const labels = ["فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو"];
+  const labelsEn = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"];
   for (let i = 0; i < 30; i++) {
     const base = 210 + Math.sin(i / 3.2) * 60 + i * 2.2;
     const commits = Math.round(base + rnd() * 90);
@@ -26,6 +33,7 @@ function buildWeekly() {
     const reviews = Math.round(prs * (1.7 + rnd() * 1.1));
     out.push({
       week: `أ${i + 1} · ${labels[Math.floor((i / 30) * labels.length)]}`,
+      weekEn: `W${i + 1} · ${labelsEn[Math.floor((i / 30) * labelsEn.length)]}`,
       commits,
       prs,
       reviews,
@@ -44,6 +52,7 @@ function buildCoverage() {
     const m = (startIdx - i + 12) % 12;
     out.push({
       month: MONTHS_AR[m],
+      monthEn: MONTHS_EN[m],
       coverage: Math.round(cov * 10) / 10,
       target: 88,
     });
@@ -64,39 +73,39 @@ export const contributionsData: ContributionsData = {
   },
   weekly: buildWeekly(),
   issuesByArea: [
-    { area: "autograd", count: 186, trend: 4 },
-    { area: "distributed", count: 231, trend: 12 },
-    { area: "inductor / compile", count: 174, trend: 9 },
-    { area: "quantization", count: 96, trend: -3 },
-    { area: "mobile / ExecuTorch", count: 82, trend: 6 },
-    { area: "rocm", count: 61, trend: 2 },
-    { area: "vmap / functorch", count: 48, trend: 5 },
-    { area: "docs", count: 37, trend: -8 },
+    { area: "autograd", areaEn: "autograd", count: 186, trend: 4 },
+    { area: "distributed", areaEn: "distributed", count: 231, trend: 12 },
+    { area: "inductor / compile", areaEn: "inductor / compile", count: 174, trend: 9 },
+    { area: "quantization", areaEn: "quantization", count: 96, trend: -3 },
+    { area: "mobile / ExecuTorch", areaEn: "mobile / ExecuTorch", count: 82, trend: 6 },
+    { area: "rocm", areaEn: "rocm", count: 61, trend: 2 },
+    { area: "vmap / functorch", areaEn: "vmap / functorch", count: 48, trend: 5 },
+    { area: "docs", areaEn: "docs", count: 37, trend: -8 },
   ],
   contributors: [
-    { handle: "ezyang", name: "Edward Z. Yang", commits: 2841, prs: 912, reviews: 5230, focus: "core / autograd" },
-    { handle: "suo", name: "Scott Wolchok", commits: 1930, prs: 745, reviews: 4877, focus: "distributed" },
-    { handle: "albanD", name: "Alban Desmaison", commits: 1755, prs: 604, reviews: 4410, focus: "core / dev-infra" },
-    { handle: "jansel", name: "Jason Ansel", commits: 1612, prs: 588, reviews: 3922, focus: "inductor / compile" },
-    { handle: "voznesenskym", name: "Michael Voznesensky", commits: 1408, prs: 517, reviews: 3311, focus: "inductor" },
-    { handle: "janeyx99", name: "Jane Xu", commits: 1104, prs: 430, reviews: 2980, focus: "quantization" },
-    { handle: "malfet", name: "Nikita Shulga", commits: 1022, prs: 391, reviews: 2644, focus: "release / mobile" },
-    { handle: "davidberard98", name: "David Berard", commits: 864, prs: 302, reviews: 2150, focus: "core" },
+    { handle: "ezyang", name: "Edward Z. Yang", commits: 2841, prs: 912, reviews: 5230, focus: "core / autograd", focusEn: "core / autograd" },
+    { handle: "suo", name: "Scott Wolchok", commits: 1930, prs: 745, reviews: 4877, focus: "distributed", focusEn: "distributed" },
+    { handle: "albanD", name: "Alban Desmaison", commits: 1755, prs: 604, reviews: 4410, focus: "core / dev-infra", focusEn: "core / dev-infra" },
+    { handle: "jansel", name: "Jason Ansel", commits: 1612, prs: 588, reviews: 3922, focus: "inductor / compile", focusEn: "inductor / compile" },
+    { handle: "voznesenskym", name: "Michael Voznesensky", commits: 1408, prs: 517, reviews: 3311, focus: "inductor", focusEn: "inductor" },
+    { handle: "janeyx99", name: "Jane Xu", commits: 1104, prs: 430, reviews: 2980, focus: "quantization", focusEn: "quantization" },
+    { handle: "malfet", name: "Nikita Shulga", commits: 1022, prs: 391, reviews: 2644, focus: "release / mobile", focusEn: "release / mobile" },
+    { handle: "davidberard98", name: "David Berard", commits: 864, prs: 302, reviews: 2150, focus: "core", focusEn: "core" },
   ],
   coverage: buildCoverage(),
   flakyTests: [
-    { name: "test_autograd_gradcheck_cuda_float64", area: "autograd", failureRate: 0.042, lastFailed: "قبل ساعتين", status: "investigating" },
-    { name: "test_distributed_nccl_allreduce_slow", area: "distributed", failureRate: 0.031, lastFailed: "قبل 5 ساعات", status: "open" },
-    { name: "test_inductor_triton_fusion_variants", area: "inductor / compile", failureRate: 0.027, lastFailed: "أمس", status: "investigating" },
-    { name: "test_quantized_conv_per_channel_mobile", area: "mobile / ExecuTorch", failureRate: 0.019, lastFailed: "قبل يومين", status: "fixed" },
-    { name: "test_vmap_batch_rule_stack_random", area: "vmap / functorch", failureRate: 0.014, lastFailed: "قبل 3 أيام", status: "fixed" },
+    { name: "test_autograd_gradcheck_cuda_float64", area: "autograd", areaEn: "autograd", failureRate: 0.042, lastFailed: "قبل ساعتين", status: "investigating" },
+    { name: "test_distributed_nccl_allreduce_slow", area: "distributed", areaEn: "distributed", failureRate: 0.031, lastFailed: "قبل 5 ساعات", status: "open" },
+    { name: "test_inductor_triton_fusion_variants", area: "inductor / compile", areaEn: "inductor / compile", failureRate: 0.027, lastFailed: "أمس", status: "investigating" },
+    { name: "test_quantized_conv_per_channel_mobile", area: "mobile / ExecuTorch", areaEn: "mobile / ExecuTorch", failureRate: 0.019, lastFailed: "قبل يومين", status: "fixed" },
+    { name: "test_vmap_batch_rule_stack_random", area: "vmap / functorch", areaEn: "vmap / functorch", failureRate: 0.014, lastFailed: "قبل 3 أيام", status: "fixed" },
   ],
   recentPRs: [
-    { id: 128401, title: "[inductor] Fuse split+cat reductions on CUDA graphs", author: "jansel", area: "inductor / compile", added: 482, removed: 117, mergedAt: "قبل 40 دقيقة", status: "merged" },
-    { id: 128396, title: "[autograd] Fix double-backward of nested vmap closures", author: "ezyang", area: "autograd", added: 213, removed: 64, mergedAt: "قبل ساعة", status: "merged" },
-    { id: 128388, title: "[distributed] Retry logic for NCCL timeout in all_gather", author: "suo", area: "distributed", added: 305, removed: 41, mergedAt: "قبل 3 ساعات", status: "merged" },
-    { id: 128377, title: "[quantization] New PT2E backend for x86 int8 GEMM", author: "janeyx99", area: "quantization", added: 940, removed: 128, mergedAt: "قبل 7 ساعات", status: "merged" },
-    { id: 128360, title: "[docs] Rewrite CUDA semantics notes with 2.x examples", author: "albanD", area: "docs", added: 611, removed: 233, mergedAt: "أمس", status: "merged" },
-    { id: 128355, title: "[metal] ExecuTorch iOS delegate for conv-transpose", author: "malfet", area: "mobile / ExecuTorch", added: 522, removed: 96, mergedAt: "أمس", status: "open" },
+    { id: 128401, title: "[inductor] Fuse split+cat reductions on CUDA graphs", author: "jansel", area: "inductor / compile", areaEn: "inductor / compile", added: 482, removed: 117, mergedAt: "قبل 40 دقيقة", status: "merged" },
+    { id: 128396, title: "[autograd] Fix double-backward of nested vmap closures", author: "ezyang", area: "autograd", areaEn: "autograd", added: 213, removed: 64, mergedAt: "قبل ساعة", status: "merged" },
+    { id: 128388, title: "[distributed] Retry logic for NCCL timeout in all_gather", author: "suo", area: "distributed", areaEn: "distributed", added: 305, removed: 41, mergedAt: "قبل 3 ساعات", status: "merged" },
+    { id: 128377, title: "[quantization] New PT2E backend for x86 int8 GEMM", author: "janeyx99", area: "quantization", areaEn: "quantization", added: 940, removed: 128, mergedAt: "قبل 7 ساعات", status: "merged" },
+    { id: 128360, title: "[docs] Rewrite CUDA semantics notes with 2.x examples", author: "albanD", area: "docs", areaEn: "docs", added: 611, removed: 233, mergedAt: "أمس", status: "merged" },
+    { id: 128355, title: "[metal] ExecuTorch iOS delegate for conv-transpose", author: "malfet", area: "mobile / ExecuTorch", areaEn: "mobile / ExecuTorch", added: 522, removed: 96, mergedAt: "أمس", status: "open" },
   ],
 };

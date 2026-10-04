@@ -40,7 +40,7 @@ export function SectionHeader({
           {description}
         </p>
       )}
-      <span className="mt-1 block h-1 w-16 rounded-full bg-gradient-to-l from-primary via-amber-500/80 to-transparent" />
+      <span className="mt-1 block h-1 w-16 rounded-full bg-gradient-to-r from-primary via-amber-500/80 to-transparent rtl:bg-gradient-to-l" />
     </div>
   );
 }

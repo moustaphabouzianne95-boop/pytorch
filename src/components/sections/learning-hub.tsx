@@ -20,6 +20,7 @@ import { CodeBlock } from "@/components/site/code-block";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /* ─── Constants ─────────────────────────────────────────────── */
@@ -31,10 +32,11 @@ type Status = "loading" | "error" | "ready";
 
 const LEVEL_ORDER: Level[] = ["beginner", "intermediate", "advanced"];
 
-const LEVEL_LABEL: Record<Level, string> = {
-  beginner: "مبتدئ",
-  intermediate: "متوسط",
-  advanced: "متقدم",
+/* Bilingual level labels — Arabic strings are the originals, byte-identical. */
+const LEVEL_LABEL: Record<Level, { en: string; ar: string }> = {
+  beginner: { en: "Beginner", ar: "مبتدئ" },
+  intermediate: { en: "Intermediate", ar: "متوسط" },
+  advanced: { en: "Advanced", ar: "متقدم" },
 };
 
 const LEVEL_BADGE: Record<Level, string> = {
@@ -49,11 +51,11 @@ const LEVEL_DOT: Record<Level, string> = {
   advanced: "bg-rose-400",
 };
 
-const FILTERS: { value: LevelFilter; label: string }[] = [
-  { value: "all", label: "الكل" },
-  { value: "beginner", label: "مبتدئ" },
-  { value: "intermediate", label: "متوسط" },
-  { value: "advanced", label: "متقدم" },
+const FILTERS: { value: LevelFilter; en: string; ar: string }[] = [
+  { value: "all", en: "All", ar: "الكل" },
+  { value: "beginner", en: "Beginner", ar: "مبتدئ" },
+  { value: "intermediate", en: "Intermediate", ar: "متوسط" },
+  { value: "advanced", en: "Advanced", ar: "متقدم" },
 ];
 
 const fadeUp = {
@@ -66,20 +68,26 @@ const fadeUp = {
 /* ─── Small pieces ──────────────────────────────────────────── */
 
 function LevelBadge({ level }: { level: Level }) {
+  const { t } = useLanguage();
   return (
     <Badge
       variant="outline"
       className={cn("shrink-0 border font-semibold", LEVEL_BADGE[level])}
     >
-      {LEVEL_LABEL[level]}
+      {t(LEVEL_LABEL[level].en, LEVEL_LABEL[level].ar)}
     </Badge>
   );
 }
 
 function ProgressHint({ done, total, pct }: { done: number; total: number; pct: number }) {
+  const { t } = useLanguage();
+  const noun = total === 1 ? "lesson" : "lessons";
   return (
     <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-      أُنجز {done} من {total} دروس ({pct}٪) · يُحفظ تلقائيًا في متصفحك
+      {t(
+        `Completed ${done} of ${total} ${noun} (${pct}%) · saved automatically in your browser`,
+        `أُنجز ${done} من ${total} دروس (${pct}٪) · يُحفظ تلقائيًا في متصفحك`
+      )}
     </p>
   );
 }
@@ -87,6 +95,7 @@ function ProgressHint({ done, total, pct }: { done: number; total: number; pct: 
 /* ─── Main section ──────────────────────────────────────────── */
 
 export default function LearningHubSection() {
+  const { t, lang } = useLanguage();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [filter, setFilter] = useState<LevelFilter>("all");
@@ -221,18 +230,20 @@ export default function LearningHubSection() {
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="flex items-center gap-2 text-sm font-bold">
             <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden />
-            تقدّمك في المسار
+            {t("Your progress on the path", "تقدّمك في المسار")}
           </span>
           <span className="font-mono text-sm font-bold text-primary" dir="ltr">
             {doneCount} / {total}
           </span>
         </div>
+        {/* Block-flow child fills from inline-start: right in RTL, left in LTR —
+            direction-safe by construction, no physical overrides needed. */}
         <div
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={total}
           aria-valuenow={doneCount}
-          aria-label="نسبة إنجاز الدروس"
+          aria-label={t("Lesson completion progress", "نسبة إنجاز الدروس")}
           className="h-2 w-full overflow-hidden rounded-full bg-primary/15"
         >
           <div
@@ -248,7 +259,7 @@ export default function LearningHubSection() {
       {/* Level filter */}
       <div
         role="group"
-        aria-label="تصفية الدروس حسب المستوى"
+        aria-label={t("Filter lessons by level", "تصفية الدروس حسب المستوى")}
         className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-2"
       >
         {FILTERS.map((f) => {
@@ -270,7 +281,7 @@ export default function LearningHubSection() {
                   : "border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground"
               )}
             >
-              {f.label}
+              {t(f.en, f.ar)}
               <span
                 className={cn(
                   "font-mono text-[11px]",
@@ -288,7 +299,7 @@ export default function LearningHubSection() {
       <div className="-mx-1 max-h-[420px] overflow-y-auto px-1 scrollbar-thin lg:max-h-[calc(100vh-26rem)]">
         {groups.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            لا توجد دروس في هذا المستوى بعد.
+            {t("No lessons at this level yet.", "لا توجد دروس في هذا المستوى بعد.")}
           </p>
         ) : (
           groups.map((g) => (
@@ -299,7 +310,7 @@ export default function LearningHubSection() {
                   aria-hidden
                 />
                 <span className="text-xs font-bold text-muted-foreground">
-                  {LEVEL_LABEL[g.level]}
+                  {t(LEVEL_LABEL[g.level].en, LEVEL_LABEL[g.level].ar)}
                 </span>
                 <span className="rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                   {g.items.length}
@@ -327,12 +338,12 @@ export default function LearningHubSection() {
                           {isDone && (
                             <CheckCircle2
                               className="h-4 w-4 shrink-0 text-primary"
-                              aria-label="درس مكتمل"
+                              aria-label={t("Completed lesson", "درس مكتمل")}
                             />
                           )}
                           <span className="ms-auto flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
                             <Clock className="h-3 w-3" aria-hidden />
-                            {l.durationMin} دقيقة
+                            {l.durationMin} {t("min", "دقيقة")}
                           </span>
                         </span>
                         <span
@@ -341,16 +352,16 @@ export default function LearningHubSection() {
                             isSelected ? "text-primary" : "text-foreground"
                           )}
                         >
-                          {l.title}
+                          {t(l.titleEn, l.title)}
                         </span>
                         <span className="flex flex-wrap gap-1">
-                          {l.tags.map((t) => (
+                          {l.tags.map((tag) => (
                             <span
-                              key={t}
+                              key={tag}
                               dir="ltr"
                               className="rounded-md bg-secondary/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
                             >
-                              {t}
+                              {tag}
                             </span>
                           ))}
                         </span>
@@ -395,29 +406,33 @@ export default function LearningHubSection() {
           <LevelBadge level={active.level} />
           <span className="flex items-center gap-1.5 rounded-md border border-border bg-secondary/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
             <Clock className="h-3.5 w-3.5" aria-hidden />
-            {active.durationMin} دقيقة
+            {active.durationMin} {t("min", "دقيقة")}
           </span>
-          {active.tags.map((t) => (
+          {active.tags.map((tag) => (
             <span
-              key={t}
+              key={tag}
               dir="ltr"
               className="rounded-md bg-secondary/60 px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
             >
-              {t}
+              {tag}
             </span>
           ))}
         </div>
 
         <div className="flex flex-col gap-1.5">
+          {/* Main title follows the active language; the mono subtitle shows the
+              OTHER language (mirrors overview.tsx's pattern). */}
           <h3 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-            {active.title}
+            {t(active.titleEn, active.title)}
           </h3>
           <p dir="ltr" className="font-mono text-sm text-primary/80">
-            {active.titleEn}
+            {t(active.title, active.titleEn)}
           </p>
         </div>
 
-        <p className="leading-relaxed text-muted-foreground">{active.description}</p>
+        <p className="leading-relaxed text-muted-foreground">
+          {t(active.descriptionEn, active.description)}
+        </p>
 
         <div>
           <button
@@ -432,7 +447,9 @@ export default function LearningHubSection() {
             )}
           >
             <CheckCircle2 className="h-5 w-5" aria-hidden />
-            {completed.has(active.id) ? "مكتمل — اضغط للتراجع" : "تم إنهاء هذا الدرس"}
+            {completed.has(active.id)
+              ? t("Completed — tap to undo", "مكتمل — اضغط للتراجع")
+              : t("Mark this lesson as done", "تم إنهاء هذا الدرس")}
           </button>
         </div>
       </div>
@@ -441,41 +458,46 @@ export default function LearningHubSection() {
 
       {/* Sections */}
       <div className="flex flex-col gap-10 p-4 sm:p-6 lg:p-8">
-        {active.sections.map((s, i) => (
-          <motion.div
-            key={`${active.id}-${i}`}
-            {...fadeUp}
-            transition={{ ...fadeUp.transition, delay: i * 0.06 }}
-          >
-            <div className="mb-3 flex items-center gap-3">
-              <span
-                dir="ltr"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 font-mono text-xs font-bold text-primary"
-              >
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <h3 className="text-lg font-bold sm:text-xl">{s.heading}</h3>
-            </div>
-            <p className="mb-4 leading-relaxed text-muted-foreground">{s.body}</p>
-            {s.code && <CodeBlock code={s.code} output={s.output} />}
-            {s.tip && (
-              <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" aria-hidden />
-                <p className="text-sm leading-relaxed text-amber-100/90">
-                  <span className="font-bold text-amber-300">نصيحة: </span>
-                  {s.tip}
-                </p>
+        {active.sections.map((s, i) => {
+          const output = s.output ? t(s.outputEn ?? s.output, s.output) : undefined;
+          return (
+            <motion.div
+              key={`${active.id}-${i}`}
+              {...fadeUp}
+              transition={{ ...fadeUp.transition, delay: i * 0.06 }}
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <span
+                  dir="ltr"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 font-mono text-xs font-bold text-primary"
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <h3 className="text-lg font-bold sm:text-xl">{t(s.headingEn, s.heading)}</h3>
               </div>
-            )}
-          </motion.div>
-        ))}
+              <p className="mb-4 leading-relaxed text-muted-foreground">{t(s.bodyEn, s.body)}</p>
+              {s.code && <CodeBlock code={s.code} output={output} />}
+              {s.tip && (
+                <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                  <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" aria-hidden />
+                  <p className="text-sm leading-relaxed text-amber-100/90">
+                    <span className="font-bold text-amber-300">{t("Tip: ", "نصيحة: ")}</span>
+                    {t(s.tipEn ?? s.tip, s.tip)}
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
       </div>
 
       <Separator />
 
-      {/* Prev / Next — RTL: "السابق" on the right (start), "التالي" on the left (end) */}
+      {/* Prev / Next — "Previous" sits at inline-start (right in RTL, left in LTR).
+          Arrows: ArrowRight/ArrowLeft are the RTL-native directions; ltr:rotate-180
+          mirrors them for LTR. */}
       <nav
-        aria-label="التنقل بين الدروس"
+        aria-label={t("Lesson navigation", "التنقل بين الدروس")}
         className="flex flex-wrap items-center justify-between gap-3 bg-background/40 p-4 sm:p-6"
       >
         <button
@@ -486,15 +508,25 @@ export default function LearningHubSection() {
           }}
           className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition-colors hover:border-primary/40 hover:text-primary disabled:pointer-events-none disabled:opacity-40"
         >
-          <ArrowRight className="h-4 w-4" aria-hidden />
-          السابق
+          <ArrowRight className="h-4 w-4 ltr:rotate-180" aria-hidden />
+          {t("Previous", "السابق")}
         </button>
 
         <p className="order-last w-full text-center text-xs text-muted-foreground sm:order-none sm:w-auto">
-          الدرس <span className="font-mono font-bold text-primary">{activeIdx + 1}</span> من{" "}
-          <span className="font-mono font-bold text-primary">{filtered.length}</span>
+          {lang === "en" ? (
+            <>
+              Lesson{" "}
+              <span className="font-mono font-bold text-primary">{activeIdx + 1}</span> of{" "}
+              <span className="font-mono font-bold text-primary">{filtered.length}</span>
+            </>
+          ) : (
+            <>
+              الدرس <span className="font-mono font-bold text-primary">{activeIdx + 1}</span> من{" "}
+              <span className="font-mono font-bold text-primary">{filtered.length}</span>
+            </>
+          )}
           {completed.has(active.id) && (
-            <span className="ms-2 text-primary">· مكتمل ✓</span>
+            <span className="ms-2 text-primary">{t("· Completed ✓", "· مكتمل ✓")}</span>
           )}
         </p>
 
@@ -506,24 +538,29 @@ export default function LearningHubSection() {
           }}
           className="flex min-h-[44px] items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40 disabled:translate-y-0"
         >
-          التالي
-          <ArrowLeft className="h-4 w-4" aria-hidden />
+          {t("Next", "التالي")}
+          <ArrowLeft className="h-4 w-4 ltr:rotate-180" aria-hidden />
         </button>
       </nav>
     </motion.article>
   ) : (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border p-12 text-center">
       <GraduationCap className="h-10 w-10 text-muted-foreground/50" aria-hidden />
-      <p className="text-sm text-muted-foreground">اختر درسًا من القائمة لتبدأ التعلّم.</p>
+      <p className="text-sm text-muted-foreground">
+        {t("Pick a lesson from the list to start learning.", "اختر درسًا من القائمة لتبدأ التعلّم.")}
+      </p>
     </div>
   );
 
   const errorPanel = (
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-10 text-center">
       <AlertCircle className="h-10 w-10 text-rose-400" aria-hidden />
-      <h3 className="text-lg font-bold">تعذّر تحميل الدروس</h3>
+      <h3 className="text-lg font-bold">{t("Couldn't load the lessons", "تعذّر تحميل الدروس")}</h3>
       <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-       حدث خطأ أثناء الاتصال بالخادم. تحقّق من الاتصال ثم أعد المحاولة.
+        {t(
+          "An error occurred while contacting the server. Check your connection and try again.",
+          "حدث خطأ أثناء الاتصال بالخادم. تحقّق من الاتصال ثم أعد المحاولة."
+        )}
       </p>
       <button
         type="button"
@@ -531,7 +568,7 @@ export default function LearningHubSection() {
         className="flex min-h-[44px] items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/20"
       >
         <RefreshCw className="h-4 w-4" aria-hidden />
-        إعادة المحاولة
+        {t("Retry", "إعادة المحاولة")}
       </button>
     </div>
   );
@@ -539,20 +576,25 @@ export default function LearningHubSection() {
   /* ─── Render ─── */
 
   return (
-    <section id="learning" aria-label="مركز التعلّم" className="py-20">
+    <section id="learning" aria-label={t("Learning Hub", "مركز التعلّم")} className="py-20">
       <div className="mx-auto w-full max-w-7xl px-4">
         <motion.div {...fadeUp}>
           <SectionHeader
-            badge="مركز التعلّم"
-            title="تعلّم PyTorch خطوة بخطوة"
-            description="ستة دروس تفاعلية مع أمثلة برمجية قابلة للتشغيل — من أساسيات التوتّرات إلى نشر النماذج في الإنتاج. تابع تقدّمك وأكمل المسار درسًا بعد درس."
+            badge={t("Learning Hub", "مركز التعلّم")}
+            title={t("Learn PyTorch step by step", "تعلّم PyTorch خطوة بخطوة")}
+            description={t(
+              "Six interactive lessons with runnable code examples — from tensor basics to deploying models in production. Track your progress and complete the path one lesson at a time.",
+              "ستة دروس تفاعلية مع أمثلة برمجية قابلة للتشغيل — من أساسيات التوتّرات إلى نشر النماذج في الإنتاج. تابع تقدّمك وأكمل المسار درسًا بعد درس."
+            )}
             icon={GraduationCap}
             className="mb-6"
           />
           <p className="mx-auto mb-10 flex max-w-2xl items-center justify-center gap-2 text-center text-xs leading-relaxed text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden />
-            بيئة تشغيل محاكاة لأغراض التعلّم: زر التشغيل في كل مثال يعرض النتيجة
-            المتوقعة مباشرة داخل المتصفح.
+            {t(
+              "Simulated runtime for learning purposes: the run button in each example reveals the expected output right inside your browser.",
+              "بيئة تشغيل محاكاة لأغراض التعلّم: زر التشغيل في كل مثال يعرض النتيجة المتوقعة مباشرة داخل المتصفح."
+            )}
           </p>
         </motion.div>
 
@@ -569,7 +611,7 @@ export default function LearningHubSection() {
               className="flex min-h-[44px] w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5 text-start transition-colors hover:border-primary/40 lg:hidden"
             >
               <GraduationCap className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-              <span className="text-sm font-bold">قائمة الدروس</span>
+              <span className="text-sm font-bold">{t("Lessons list", "قائمة الدروس")}</span>
               <span className="font-mono text-xs text-primary" dir="ltr">
                 {status === "ready" ? `${doneCount} / ${total}` : "…"}
               </span>

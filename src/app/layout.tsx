@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Cairo } from "next/font/google";
+import { Geist, Geist_Mono, Cairo, Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { LanguageProvider } from "@/lib/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,15 +19,22 @@ const cairo = Cairo({
   subsets: ["arabic", "latin"],
 });
 
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
-  title: "PyTorch — المنصة التفاعلية | ميزات، تعلّم، ملعب شبكات عصبية",
+  title: "PyTorch — Interactive Platform | المنصة التفاعلية",
   description:
-    "منصة تفاعلية عربية لاستكشاف PyTorch: ميزات الإطار وحالات استخدامه ونظامه البيئي، مركز تعلّم تفاعلي، ملعب شبكات عصبية يعمل في المتصفح، لوحة بيانات المساهمات، ومرجع API قابل للبحث.",
+    "Bilingual (English / العربية) interactive explorer for PyTorch: framework features, guided lessons, an in-browser neural-network playground, a contributions dashboard, and a searchable API reference. منصة تفاعلية ثنائية اللغة لاستكشاف PyTorch: الميزات، مركز تعلّم، ملعب شبكات عصبية، لوحة مساهمات، ومرجع API.",
   keywords: [
     "PyTorch",
+    "Deep Learning",
+    "Machine Learning",
+    "التعلم العميق",
     "تعلم الآلة",
     "الشبكات العصبية",
-    "Deep Learning",
     "Autograd",
     "CUDA",
     "TorchScript",
@@ -36,8 +44,9 @@ export const metadata: Metadata = {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
   openGraph: {
-    title: "PyTorch — المنصة التفاعلية",
-    description: "استكشف PyTorch: ميزات، تعلّم تفاعلي، ملعب شبكات عصبية، لوحة مساهمات، ومرجع API.",
+    title: "PyTorch — Interactive Platform | المنصة التفاعلية",
+    description:
+      "Explore PyTorch in English & Arabic: features, guided learning, neural-network playground, contributions dashboard, and API reference.",
     siteName: "PyTorch Interactive",
     type: "website",
   },
@@ -51,10 +60,12 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
+        className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable} ${inter.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
       >
-        {children}
-        <Toaster />
+        <LanguageProvider>
+          {children}
+          <Toaster />
+        </LanguageProvider>
       </body>
     </html>
   );

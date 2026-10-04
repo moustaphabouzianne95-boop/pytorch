@@ -1,0 +1,783 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useEffect, useMemo, useRef, useState } from "react";
+     4→     4→import { AnimatePresence, motion } from "framer-motion";
+     5→     5→import {
+     6→     6→  AlertCircle,
+     7→     7→  BookOpen,
+     8→     8→  Braces,
+     9→     9→  Check,
+    10→    10→  ChevronDown,
+    11→    11→  Copy,
+    12→    12→  CornerDownLeft,
+    13→    13→  MousePointerClick,
+    14→    14→  RotateCcw,
+    15→    15→  Search,
+    16→    16→  SearchX,
+    17→    17→  Terminal,
+    18→    18→  X,
+    19→    19→} from "lucide-react";
+    20→    20→import { Badge } from "@/components/ui/badge";
+    21→    21→import { Button } from "@/components/ui/button";
+    22→    22→import { Input } from "@/components/ui/input";
+    23→    23→import { Skeleton } from "@/components/ui/skeleton";
+    24→    24→import {
+    25→    25→  Table,
+    26→    26→  TableBody,
+    27→    27→  TableCell,
+    28→    28→  TableHead,
+    29→    29→  TableHeader,
+    30→    30→  TableRow,
+    31→    31→} from "@/components/ui/table";
+    32→    32→import { CodeBlock } from "@/components/site/code-block";
+    33→    33→import { SectionHeader } from "@/components/site/section-header";
+    34→    34→import type { DocEntry, DocGroup, DocKind } from "@/lib/types";
+    35→    35→import { cn } from "@/lib/utils";
+    36→    36→
+    37→    37→/* ─── Shared animation pattern (same as overview.tsx) ─── */
+    38→    38→const fadeUp = {
+    39→    39→  initial: { opacity: 0, y: 16 },
+    40→    40→  whileInView: { opacity: 1, y: 0 },
+    41→    41→  viewport: { once: true, margin: "-60px" },
+    42→    42→  transition: { duration: 0.5, ease: "easeOut" as const },
+    43→    43→};
+    44→    44→
+    45→    45→interface FlatEntry {
+    46→    46→  entry: DocEntry;
+    47→    47→  groupId: string;
+    48→    48→  groupName: string;
+    49→    49→}
+    50→    50→
+    51→    51→type FetchStatus = "loading" | "ready" | "error";
+    52→    52→
+    53→    53→/* ─── Kind metadata: class=orange / function=emerald / method=amber / property=zinc ─── */
+    54→    54→const KIND_META: Record<DocKind, { label: string; cls: string }> = {
+    55→    55→  class: { label: "صنف", cls: "border-primary/40 bg-primary/10 text-primary" },
+    56→    56→  function: {
+    57→    57→    label: "دالة",
+    58→    58→    cls: "border-emerald-500/35 bg-emerald-500/10 text-emerald-300",
+    59→    59→  },
+    60→    60→  method: {
+    61→    61→    label: "طريقة",
+    62→    62→    cls: "border-amber-500/35 bg-amber-500/10 text-amber-300",
+    63→    63→  },
+    64→    64→  property: {
+    65→    65→    label: "خاصية",
+    66→    66→    cls: "border-zinc-500/40 bg-zinc-500/10 text-zinc-300",
+    67→    67→  },
+    68→    68→  module: {
+    69→    69→    label: "وحدة",
+    70→    70→    cls: "border-rose-500/35 bg-rose-500/10 text-rose-300",
+    71→    71→  },
+    72→    72→};
+    73→    73→
+    74→    74→const isLatin = (s: string) => /^[A-Za-z0-9_.\-/]+$/.test(s);
+    75→    75→
+    76→    76→function pluralResults(n: number): string {
+    77→    77→  if (n === 0) return "لا نتائج";
+    78→    78→  if (n === 1) return "نتيجة واحدة";
+    79→    79→  if (n === 2) return "نتيجتان";
+    80→    80→  if (n <= 10) return `${n} نتائج`;
+    81→    81→  return `${n} نتيجة`;
+    82→    82→}
+    83→    83→
+    84→    84→/* ─── Small building blocks ─── */
+    85→    85→
+    86→    86→function KindBadge({ kind }: { kind: DocKind }) {
+    87→    87→  const meta = KIND_META[kind];
+    88→    88→  return (
+    89→    89→    <Badge
+    90→    90→      variant="outline"
+    91→    91→      className={cn(
+    92→    92→        "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold",
+    93→    93→        meta.cls
+    94→    94→      )}
+    95→    95→    >
+    96→    96→      {meta.label}
+    97→    97→    </Badge>
+    98→    98→  );
+    99→    99→}
+   100→   100→
+   101→   101→function CopyButton({ text }: { text: string }) {
+   102→   102→  const [copied, setCopied] = useState(false);
+   103→   103→  const copy = async () => {
+   104→   104→    try {
+   105→   105→      await navigator.clipboard.writeText(text);
+   106→   106→      setCopied(true);
+   107→   107→      setTimeout(() => setCopied(false), 1600);
+   108→   108→    } catch {
+   109→   109→      // clipboard unavailable — ignore
+   110→   110→    }
+   111→   111→  };
+   112→   112→  return (
+   113→   113→    <Button
+   114→   114→      type="button"
+   115→   115→      variant="outline"
+   116→   116→      onClick={copy}
+   117→   117→      aria-label="نسخ التوقيع"
+   118→   118→      className="min-h-[44px] gap-1.5 rounded-lg border-border bg-secondary/60 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
+   119→   119→    >
+   120→   120→      {copied ? (
+   121→   121→        <Check className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
+   122→   122→      ) : (
+   123→   123→        <Copy className="h-3.5 w-3.5" aria-hidden />
+   124→   124→      )}
+   125→   125→      {copied ? "تم النسخ" : "نسخ"}
+   126→   126→    </Button>
+   127→   127→  );
+   128→   128→}
+   129→   129→
+   130→   130→/* ─── Full detail view (used by desktop panel + mobile accordion) ─── */
+   131→   131→
+   132→   132→function EntryDetail({ entry }: { entry: DocEntry }) {
+   133→   133→  return (
+   134→   134→    <div className="flex flex-col gap-5">
+   135→   135→      {/* Name + kind */}
+   136→   136→      <div className="flex flex-wrap items-center gap-2.5">
+   137→   137→        <h3 dir="ltr" className="font-mono text-xl font-bold text-foreground">
+   138→   138→          {entry.name}
+   139→   139→        </h3>
+   140→   140→        <KindBadge kind={entry.kind} />
+   141→   141→      </div>
+   142→   142→
+   143→   143→      {/* Signature (LTR mono box + copy) */}
+   144→   144→      <div className="flex flex-col gap-2">
+   145→   145→        <div className="flex items-center justify-between gap-2">
+   146→   146→          <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+   147→   147→            التوقيع الكامل
+   148→   148→          </h4>
+   149→   149→          <CopyButton text={entry.signature} />
+   150→   150→        </div>
+   151→   151→        <div
+   152→   152→          dir="ltr"
+   153→   153→          className="overflow-x-auto scrollbar-thin rounded-xl border border-border bg-[oklch(0.13_0.01_50)] px-4 py-3 text-left font-mono text-[13px] leading-relaxed text-zinc-100 shadow-inner"
+   154→   154→        >
+   155→   155→          <code className="whitespace-pre-wrap break-words">
+   156→   156→            {entry.signature}
+   157→   157→          </code>
+   158→   158→        </div>
+   159→   159→      </div>
+   160→   160→
+   161→   161→      {/* Arabic description */}
+   162→   162→      <p className="text-sm leading-relaxed text-foreground/90">
+   163→   163→        {entry.description}
+   164→   164→      </p>
+   165→   165→
+   166→   166→      {/* Params table */}
+   167→   167→      {entry.params && entry.params.length > 0 && (
+   168→   168→        <div className="flex flex-col gap-2">
+   169→   169→          <h4 className="flex items-center gap-1.5 text-sm font-bold">
+   170→   170→            <Braces className="h-4 w-4 text-primary" aria-hidden />
+   171→   171→            المعاملات
+   172→   172→            <Badge variant="secondary" className="font-mono text-[10px]">
+   173→   173→              {entry.params.length}
+   174→   174→            </Badge>
+   175→   175→          </h4>
+   176→   176→          <div className="overflow-hidden rounded-xl border border-border">
+   177→   177→            <Table>
+   178→   178→              <TableHeader>
+   179→   179→                <TableRow className="bg-secondary/60 hover:bg-secondary/60">
+   180→   180→                  <TableHead className="w-[110px] px-3 text-start">
+   181→   181→                    الاسم
+   182→   182→                  </TableHead>
+   183→   183→                  <TableHead className="w-[150px] px-3 text-start">
+   184→   184→                    النوع
+   185→   185→                  </TableHead>
+   186→   186→                  <TableHead className="px-3 text-start">الوصف</TableHead>
+   187→   187→                </TableRow>
+   188→   188→              </TableHeader>
+   189→   189→              <TableBody>
+   190→   190→                {entry.params.map((p) => (
+   191→   191→                  <TableRow key={p.name}>
+   192→   192→                    <TableCell
+   193→   193→                      dir="ltr"
+   194→   194→                      className="whitespace-normal px-3 align-top font-mono text-xs font-semibold text-foreground"
+   195→   195→                    >
+   196→   196→                      {p.name}
+   197→   197→                    </TableCell>
+   198→   198→                    <TableCell
+   199→   199→                      dir="ltr"
+   200→   200→                      className="whitespace-normal break-words px-3 align-top font-mono text-xs text-emerald-300"
+   201→   201→                    >
+   202→   202→                      {p.type}
+   203→   203→                    </TableCell>
+   204→   204→                    <TableCell className="whitespace-normal px-3 align-top text-xs leading-relaxed text-muted-foreground">
+   205→   205→                      {p.desc}
+   206→   206→                    </TableCell>
+   207→   207→                  </TableRow>
+   208→   208→                ))}
+   209→   209→              </TableBody>
+   210→   210→            </Table>
+   211→   211→          </div>
+   212→   212→        </div>
+   213→   213→      )}
+   214→   214→
+   215→   215→      {/* Returns */}
+   216→   216→      {entry.returns && (
+   217→   217→        <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+   218→   218→          <CornerDownLeft
+   219→   219→            className="mt-0.5 h-4 w-4 shrink-0 text-amber-400"
+   220→   220→            aria-hidden
+   221→   221→          />
+   222→   222→          <p className="text-sm leading-relaxed text-foreground/90">
+   223→   223→            <span className="font-bold text-amber-300">القيمة المرجعة: </span>
+   224→   224→            {entry.returns}
+   225→   225→          </p>
+   226→   226→        </div>
+   227→   227→      )}
+   228→   228→
+   229→   229→      {/* Example */}
+   230→   230→      {entry.example && (
+   231→   231→        <div className="flex flex-col gap-2">
+   232→   232→          <h4 className="flex items-center gap-1.5 text-sm font-bold">
+   233→   233→            <Terminal className="h-4 w-4 text-emerald-400" aria-hidden />
+   234→   234→            مثال عملي
+   235→   235→          </h4>
+   236→   236→          <CodeBlock code={entry.example} title={entry.name} compact />
+   237→   237→        </div>
+   238→   238→      )}
+   239→   239→    </div>
+   240→   240→  );
+   241→   241→}
+   242→   242→
+   243→   243→/* ─── Desktop master-list row ─── */
+   244→   244→
+   245→   245→function EntryListItem({
+   246→   246→  f,
+   247→   247→  selected,
+   248→   248→  showGroup,
+   249→   249→  onSelect,
+   250→   250→}: {
+   251→   251→  f: FlatEntry;
+   252→   252→  selected: boolean;
+   253→   253→  showGroup: boolean;
+   254→   254→  onSelect: () => void;
+   255→   255→}) {
+   256→   256→  return (
+   257→   257→    <button
+   258→   258→      type="button"
+   259→   259→      onClick={onSelect}
+   260→   260→      aria-current={selected ? "true" : undefined}
+   261→   261→      className={cn(
+   262→   262→        "flex min-h-[64px] w-full flex-col gap-1.5 border-b border-border/60 border-s-2 px-4 py-3 text-start transition-colors last:border-b-0 hover:bg-accent/40",
+   263→   263→        selected
+   264→   264→          ? "border-s-primary bg-primary/10"
+   265→   265→          : "border-s-transparent"
+   266→   266→      )}
+   267→   267→    >
+   268→   268→      <div className="flex items-center gap-2">
+   269→   269→        <span
+   270→   270→          dir="ltr"
+   271→   271→          className="truncate font-mono text-sm font-semibold text-foreground"
+   272→   272→        >
+   273→   273→          {f.entry.name}
+   274→   274→        </span>
+   275→   275→        {showGroup && (
+   276→   276→          <span
+   277→   277→            dir="ltr"
+   278→   278→            className="ms-auto hidden shrink-0 font-mono text-[10px] text-muted-foreground/80 sm:block"
+   279→   279→          >
+   280→   280→            {f.groupName}
+   281→   281→          </span>
+   282→   282→        )}
+   283→   283→        <span className={cn("shrink-0", !showGroup && "ms-auto")}>
+   284→   284→          <KindBadge kind={f.entry.kind} />
+   285→   285→        </span>
+   286→   286→      </div>
+   287→   287→      <p className="line-clamp-1 text-xs leading-relaxed text-muted-foreground">
+   288→   288→        {f.entry.description}
+   289→   289→      </p>
+   290→   290→    </button>
+   291→   291→  );
+   292→   292→}
+   293→   293→
+   294→   294→/* ─── Mobile accordion card ─── */
+   295→   295→
+   296→   296→function MobileEntryCard({
+   297→   297→  f,
+   298→   298→  open,
+   299→   299→  onToggle,
+   300→   300→}: {
+   301→   301→  f: FlatEntry;
+   302→   302→  open: boolean;
+   303→   303→  onToggle: () => void;
+   304→   304→}) {
+   305→   305→  return (
+   306→   306→    <div
+   307→   307→      className={cn(
+   308→   308→        "overflow-hidden rounded-2xl border bg-card transition-colors",
+   309→   309→        open ? "border-primary/40" : "border-border"
+   310→   310→      )}
+   311→   311→    >
+   312→   312→      <button
+   313→   313→        type="button"
+   314→   314→        onClick={onToggle}
+   315→   315→        aria-expanded={open}
+   316→   316→        className="flex min-h-[64px] w-full items-center gap-3 px-4 py-3 text-start"
+   317→   317→      >
+   318→   318→        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+   319→   319→          <div className="flex items-center gap-2">
+   320→   320→            <span
+   321→   321→              dir="ltr"
+   322→   322→              className="truncate font-mono text-sm font-semibold text-foreground"
+   323→   323→            >
+   324→   324→              {f.entry.name}
+   325→   325→            </span>
+   326→   326→            <span className="ms-auto shrink-0">
+   327→   327→              <KindBadge kind={f.entry.kind} />
+   328→   328→            </span>
+   329→   329→          </div>
+   330→   330→          <p className="line-clamp-1 text-xs leading-relaxed text-muted-foreground">
+   331→   331→            {f.entry.description}
+   332→   332→          </p>
+   333→   333→        </div>
+   334→   334→        <ChevronDown
+   335→   335→          className={cn(
+   336→   336→            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+   337→   337→            open && "rotate-180"
+   338→   338→          )}
+   339→   339→          aria-hidden
+   340→   340→        />
+   341→   341→      </button>
+   342→   342→      <AnimatePresence initial={false}>
+   343→   343→        {open && (
+   344→   344→          <motion.div
+   345→   345→            key="detail"
+   346→   346→            initial={{ height: 0, opacity: 0 }}
+   347→   347→            animate={{ height: "auto", opacity: 1 }}
+   348→   348→            exit={{ height: 0, opacity: 0 }}
+   349→   349→            transition={{ duration: 0.25, ease: "easeOut" }}
+   350→   350→            className="overflow-hidden"
+   351→   351→          >
+   352→   352→            <div className="border-t border-border/70 px-4 pb-5 pt-4">
+   353→   353→              <EntryDetail entry={f.entry} />
+   354→   354→            </div>
+   355→   355→          </motion.div>
+   356→   356→        )}
+   357→   357→      </AnimatePresence>
+   358→   358→    </div>
+   359→   359→  );
+   360→   360→}
+   361→   361→
+   362→   362→/* ─── Empty / error / loading states ─── */
+   363→   363→
+   364→   364→function EmptyResults({ query, onClear }: { query: string; onClear: () => void }) {
+   365→   365→  return (
+   366→   366→    <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-card/60 p-12 text-center">
+   367→   367→      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
+   368→   368→        <SearchX className="h-7 w-7" aria-hidden />
+   369→   369→      </span>
+   370→   370→      <h3 className="text-lg font-bold">لا توجد نتائج مطابقة</h3>
+   371→   371→      <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+   372→   372→        لم نعثر على «{query}» بين الأسماء أو التوقيعات أو الأوصاف العربية.
+   373→   373→        جرّب كلمة أقصر، أو اسمًا لاتينيًا مثل{" "}
+   374→   374→        <span dir="ltr" className="font-mono text-primary">
+   375→   375→          Adam
+   376→   376→        </span>{" "}
+   377→   377→        أو{" "}
+   378→   378→        <span dir="ltr" className="font-mono text-primary">
+   379→   379→          unsqueeze
+   380→   380→        </span>
+   381→   381→        .
+   382→   382→      </p>
+   383→   383→      <Button
+   384→   384→        type="button"
+   385→   385→        variant="outline"
+   386→   386→        onClick={onClear}
+   387→   387→        className="min-h-[44px] gap-2"
+   388→   388→      >
+   389→   389→        <X className="h-4 w-4" aria-hidden />
+   390→   390→        مسح البحث
+   391→   391→      </Button>
+   392→   392→    </div>
+   393→   393→  );
+   394→   394→}
+   395→   395→
+   396→   396→function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+   397→   397→  return (
+   398→   398→    <div className="flex flex-col items-center gap-4 rounded-2xl border border-rose-500/25 bg-rose-500/5 p-12 text-center">
+   399→   399→      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-400">
+   400→   400→        <AlertCircle className="h-7 w-7" aria-hidden />
+   401→   401→      </span>
+   402→   402→      <h3 className="text-lg font-bold">حدث خطأ أثناء التحميل</h3>
+   403→   403→      <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+   404→   404→        {message}
+   405→   405→      </p>
+   406→   406→      <Button type="button" onClick={onRetry} className="min-h-[44px] gap-2">
+   407→   407→        <RotateCcw className="h-4 w-4" aria-hidden />
+   408→   408→        إعادة المحاولة
+   409→   409→      </Button>
+   410→   410→    </div>
+   411→   411→  );
+   412→   412→}
+   413→   413→
+   414→   414→function LoadingSkeleton() {
+   415→   415→  return (
+   416→   416→    <div className="flex flex-col gap-6">
+   417→   417→      <div className="flex flex-wrap gap-2">
+   418→   418→        {Array.from({ length: 7 }).map((_, i) => (
+   419→   419→          <Skeleton key={i} className="h-11 w-32 rounded-xl" />
+   420→   420→        ))}
+   421→   421→      </div>
+   422→   422→      <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+   423→   423→        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+   424→   424→          {Array.from({ length: 7 }).map((_, i) => (
+   425→   425→            <Skeleton key={i} className="h-14 w-full rounded-lg" />
+   426→   426→          ))}
+   427→   427→        </div>
+   428→   428→        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+   429→   429→          <Skeleton className="h-7 w-48" />
+   430→   430→          <Skeleton className="h-16 w-full" />
+   431→   431→          <Skeleton className="h-4 w-full" />
+   432→   432→          <Skeleton className="h-4 w-3/4" />
+   433→   433→          <Skeleton className="h-36 w-full" />
+   434→   434→        </div>
+   435→   435→      </div>
+   436→   436→    </div>
+   437→   437→  );
+   438→   438→}
+   439→   439→
+   440→   440→/* ─── Main section ─── */
+   441→   441→
+   442→   442→export default function ApiExplorerSection() {
+   443→   443→  const [status, setStatus] = useState<FetchStatus>("loading");
+   444→   444→  const [groups, setGroups] = useState<DocGroup[] | null>(null);
+   445→   445→  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+   446→   446→  const [reloadToken, setReloadToken] = useState(0);
+   447→   447→
+   448→   448→  const [query, setQuery] = useState("");
+   449→   449→  const [activeGroup, setActiveGroup] = useState<string>("all");
+   450→   450→  /** undefined = derive (first result) · null = explicitly closed (mobile) · string = explicit pick */
+   451→   451→  const [manualId, setManualId] = useState<string | null | undefined>(undefined);
+   452→   452→
+   453→   453→  const inputRef = useRef<HTMLInputElement>(null);
+   454→   454→  const listRef = useRef<HTMLDivElement>(null);
+   455→   455→
+   456→   456→  /* Fetch docs from the REST API (state updates only inside async callbacks) */
+   457→   457→  useEffect(() => {
+   458→   458→    let cancelled = false;
+   459→   459→    fetch("/api/docs")
+   460→   460→      .then(async (res) => {
+   461→   461→        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+   462→   462→        const data = (await res.json()) as { groups?: DocGroup[] };
+   463→   463→        if (!data || !Array.isArray(data.groups) || data.groups.length === 0) {
+   464→   464→          throw new Error("bad payload");
+   465→   465→        }
+   466→   466→        if (!cancelled) {
+   467→   467→          setGroups(data.groups);
+   468→   468→          setStatus("ready");
+   469→   469→        }
+   470→   470→      })
+   471→   471→      .catch(() => {
+   472→   472→        if (!cancelled) {
+   473→   473→          setErrorMsg(
+   474→   474→            "تعذّر تحميل مرجع API من الخادم. تحقق من الاتصال ثم أعد المحاولة."
+   475→   475→          );
+   476→   476→          setStatus("error");
+   477→   477→        }
+   478→   478→      });
+   479→   479→    return () => {
+   480→   480→      cancelled = true;
+   481→   481→    };
+   482→   482→  }, [reloadToken]);
+   483→   483→
+   484→   484→  /* "/" focuses the search box (unless already typing in a field) */
+   485→   485→  useEffect(() => {
+   486→   486→    const onKey = (e: KeyboardEvent) => {
+   487→   487→      const t = e.target as HTMLElement | null;
+   488→   488→      const typing =
+   489→   489→        t &&
+   490→   490→        (t.tagName === "INPUT" ||
+   491→   491→          t.tagName === "TEXTAREA" ||
+   492→   492→          t.isContentEditable);
+   493→   493→      if (e.key === "/" && !typing) {
+   494→   494→        e.preventDefault();
+   495→   495→        inputRef.current?.focus();
+   496→   496→      }
+   497→   497→    };
+   498→   498→    window.addEventListener("keydown", onKey);
+   499→   499→    return () => window.removeEventListener("keydown", onKey);
+   500→   500→  }, []);
+   501→   501→
+   502→   502→  /* Flatten groups once data arrives */
+   503→   503→  const flat = useMemo<FlatEntry[]>(
+   504→   504→    () =>
+   505→   505→      (groups ?? []).flatMap((g) =>
+   506→   506→        g.entries.map((e) => ({ entry: e, groupId: g.id, groupName: g.name }))
+   507→   507→      ),
+   508→   508→    [groups]
+   509→   509→  );
+   510→   510→
+   511→   511→  /* Instant search: name + signature + Arabic description */
+   512→   512→  const filtered = useMemo(() => {
+   513→   513→    const q = query.trim().toLowerCase();
+   514→   514→    return flat.filter((f) => {
+   515→   515→      if (activeGroup !== "all" && f.groupId !== activeGroup) return false;
+   516→   516→      if (!q) return true;
+   517→   517→      return (
+   518→   518→        f.entry.name.toLowerCase().includes(q) ||
+   519→   519→        f.entry.signature.toLowerCase().includes(q) ||
+   520→   520→        f.entry.description.includes(query.trim())
+   521→   521→      );
+   522→   522→    });
+   523→   523→  }, [flat, activeGroup, query]);
+   524→   524→
+   525→   525→  /* Displayed entry: explicit pick wins; otherwise fall back to the first result.
+   526→   526→     Pure derivation — no selection effect needed. */
+   527→   527→  const active = useMemo(
+   528→   528→    () => filtered.find((f) => f.entry.name === manualId) ?? filtered[0] ?? null,
+   529→   529→    [filtered, manualId]
+   530→   530→  );
+   531→   531→
+   532→   532→  /* Scroll the master list back to top when the scope changes */
+   533→   533→  useEffect(() => {
+   534→   534→    listRef.current?.scrollTo({ top: 0 });
+   535→   535→  }, [activeGroup, query]);
+   536→   536→
+   537→   537→  const groupTabs = useMemo(
+   538→   538→    () => [
+   539→   539→      { id: "all", name: "الكل", count: flat.length },
+   540→   540→      ...(groups ?? []).map((g) => ({
+   541→   541→        id: g.id,
+   542→   542→        name: g.name,
+   543→   543→        count: g.entries.length,
+   544→   544→      })),
+   545→   545→    ],
+   546→   546→    [groups, flat.length]
+   547→   547→  );
+   548→   548→
+   549→   549→  const activeGroupDesc =
+   550→   550→    activeGroup === "all"
+   551→   551→      ? null
+   552→   552→      : (groups ?? []).find((g) => g.id === activeGroup)?.description;
+   553→   553→
+   554→   554→  const clearSearch = () => {
+   555→   555→    setQuery("");
+   556→   556→    setManualId(undefined);
+   557→   557→    inputRef.current?.focus();
+   558→   558→  };
+   559→   559→
+   560→   560→  const retry = () => {
+   561→   561→    setManualId(undefined);
+   562→   562→    setStatus("loading");
+   563→   563→    setReloadToken((t) => t + 1);
+   564→   564→  };
+   565→   565→
+   566→   566→  const selectGroup = (id: string) => {
+   567→   567→    setActiveGroup(id);
+   568→   568→    setManualId(undefined);
+   569→   569→  };
+   570→   570→
+   571→   571→  return (
+   572→   572→    <section className="relative overflow-hidden py-20" aria-label="مرجع PyTorch API">
+   573→   573→      {/* Soft ambient glow */}
+   574→   574→      <div
+   575→   575→        aria-hidden
+   576→   576→        className="pointer-events-none absolute -top-32 start-1/3 h-80 w-80 rounded-full bg-primary/10 blur-[110px]"
+   577→   577→      />
+   578→   578→
+   579→   579→      <div className="relative mx-auto w-full max-w-7xl px-4">
+   580→   580→        {/* Header */}
+   581→   581→        <motion.div {...fadeUp}>
+   582→   582→          <SectionHeader
+   583→   583→            badge="مرجع قابل للبحث"
+   584→   584→            title="مستكشف PyTorch API"
+   585→   585→            description="توثيق تفاعلي لأكثر من 60 دالة وصنفًا عبر torch.Tensor و torch.autograd و torch.nn و torch.optim و torch.utils.data — بحث فوري بالاسم والتوقيع والشرح العربي، مع أمثلة جاهزة للنسخ."
+   586→   586→            icon={BookOpen}
+   587→   587→          />
+   588→   588→        </motion.div>
+   589→   589→
+   590→   590→        {/* Search bar */}
+   591→   591→        <motion.div {...fadeUp} className="mb-4">
+   592→   592→          <div className="relative">
+   593→   593→            <Search
+   594→   594→              className="pointer-events-none absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
+   595→   595→              aria-hidden
+   596→   596→            />
+   597→   597→            <Input
+   598→   598→              ref={inputRef}
+   599→   599→              value={query}
+   600→   600→              onChange={(e) => {
+   601→   601→                setQuery(e.target.value);
+   602→   602→                setManualId(undefined);
+   603→   603→              }}
+   604→   604→              placeholder="ابحث عن دالة أو صنف… بالاسم أو التوقيع أو الشرح العربي"
+   605→   605→              aria-label="بحث في مرجع PyTorch API"
+   606→   606→              className="h-14 rounded-2xl border-border bg-card ps-12 pe-24 text-base shadow-sm"
+   607→   607→            />
+   608→   608→            {query ? (
+   609→   609→              <button
+   610→   610→                type="button"
+   611→   611→                onClick={clearSearch}
+   612→   612→                aria-label="مسح البحث"
+   613→   613→                className="absolute end-1.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+   614→   614→              >
+   615→   615→                <X className="h-4 w-4" aria-hidden />
+   616→   616→              </button>
+   617→   617→            ) : (
+   618→   618→              <kbd
+   619→   619→                className="absolute end-4 top-1/2 hidden -translate-y-1/2 items-center rounded-md border border-border bg-secondary px-2 py-0.5 font-mono text-xs text-muted-foreground sm:flex"
+   620→   620→                aria-hidden
+   621→   621→              >
+   622→   622→                /
+   623→   623→              </kbd>
+   624→   624→            )}
+   625→   625→          </div>
+   626→   626→          <div className="mt-2 flex items-center justify-between px-1">
+   627→   627→            <p className="text-xs font-medium text-muted-foreground" aria-live="polite">
+   628→   628→              {pluralResults(filtered.length)}
+   629→   629→            </p>
+   630→   630→            <p className="hidden text-xs text-muted-foreground sm:block">
+   631→   631→              اضغط{" "}
+   632→   632→              <kbd className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px]">
+   633→   633→                /
+   634→   634→              </kbd>{" "}
+   635→   635→              للانتقال السريع إلى البحث
+   636→   636→            </p>
+   637→   637→          </div>
+   638→   638→        </motion.div>
+   639→   639→
+   640→   640→        {/* Group selector with counts */}
+   641→   641→        <motion.div {...fadeUp} className="mb-6 flex flex-wrap items-center gap-2">
+   642→   642→          {groupTabs.map((t) => {
+   643→   643→            const active = activeGroup === t.id;
+   644→   644→            const latin = isLatin(t.name);
+   645→   645→            return (
+   646→   646→              <button
+   647→   647→                key={t.id}
+   648→   648→                type="button"
+   649→   649→                onClick={() => selectGroup(t.id)}
+   650→   650→                aria-pressed={active}
+   651→   651→                className={cn(
+   652→   652→                  "inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all",
+   653→   653→                  active
+   654→   654→                    ? "border-primary/50 bg-primary/15 text-primary shadow-sm shadow-primary/20"
+   655→   655→                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
+   656→   656→                )}
+   657→   657→              >
+   658→   658→                <span
+   659→   659→                  dir={latin ? "ltr" : "rtl"}
+   660→   660→                  className={cn("text-[13px]", latin && "font-mono")}
+   661→   661→                >
+   662→   662→                  {t.name}
+   663→   663→                </span>
+   664→   664→                <span
+   665→   665→                  className={cn(
+   666→   666→                    "rounded-md px-1.5 py-0.5 font-mono text-[11px]",
+   667→   667→                    active
+   668→   668→                      ? "bg-primary/20 text-primary"
+   669→   669→                      : "bg-secondary text-muted-foreground"
+   670→   670→                  )}
+   671→   671→                >
+   672→   672→                  {t.count}
+   673→   673→                </span>
+   674→   674→              </button>
+   675→   675→            );
+   676→   676→          })}
+   677→   677→        </motion.div>
+   678→   678→
+   679→   679→        {/* Active scope description */}
+   680→   680→        {status === "ready" && groups && (
+   681→   681→          <p className="mb-6 -mt-2 text-sm leading-relaxed text-muted-foreground">
+   682→   682→            {activeGroup === "all" ? (
+   683→   683→              <>
+   684→   684→                عرض شامل لكل المجموعات —{" "}
+   685→   685→                <span className="font-mono text-primary">{flat.length}</span>{" "}
+   686→   686→                عنصرًا موثقًا بشرح عربي وأمثلة قابلة للنسخ.
+   687→   687→              </>
+   688→   688→            ) : (
+   689→   689→              activeGroupDesc
+   690→   690→            )}
+   691→   691→          </p>
+   692→   692→        )}
+   693→   693→
+   694→   694→        {/* Content */}
+   695→   695→        {status === "loading" && <LoadingSkeleton />}
+   696→   696→        {status === "error" && <ErrorState message={errorMsg ?? ""} onRetry={retry} />}
+   697→   697→        {status === "ready" && groups && filtered.length === 0 && (
+   698→   698→          <motion.div {...fadeUp}>
+   699→   699→            <EmptyResults query={query.trim()} onClear={clearSearch} />
+   700→   700→          </motion.div>
+   701→   701→        )}
+   702→   702→        {status === "ready" && groups && filtered.length > 0 && (
+   703→   703→          <>
+   704→   704→            {/* Desktop: master–detail */}
+   705→   705→            <motion.div
+   706→   706→              {...fadeUp}
+   707→   707→              className="hidden lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-6"
+   708→   708→            >
+   709→   709→              {/* Master list */}
+   710→   710→              <div className="overflow-hidden rounded-2xl border border-border bg-card">
+   711→   711→                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+   712→   712→                  <h3 className="text-sm font-bold">قائمة العناصر</h3>
+   713→   713→                  <Badge
+   714→   714→                    variant="secondary"
+   715→   715→                    className="font-mono text-[11px]"
+   716→   716→                    dir="rtl"
+   717→   717→                  >
+   718→   718→                    {pluralResults(filtered.length)}
+   719→   719→                  </Badge>
+   720→   720→                </div>
+   721→   721→                <div
+   722→   722→                  ref={listRef}
+   723→   723→                  className="max-h-[560px] overflow-y-auto scrollbar-thin"
+   724→   724→                >
+   725→   725→                  {filtered.map((f) => (
+   726→   726→                    <EntryListItem
+   727→   727→                      key={f.entry.name}
+   728→   728→                      f={f}
+   729→   729→                      selected={f.entry.name === active?.entry.name}
+   730→   730→                      showGroup={activeGroup === "all"}
+   731→   731→                      onSelect={() => setManualId(f.entry.name)}
+   732→   732→                    />
+   733→   733→                  ))}
+   734→   734→                </div>
+   735→   735→              </div>
+   736→   736→
+   737→   737→              {/* Detail panel */}
+   738→   738→              <aside className="overflow-y-auto scrollbar-thin rounded-2xl border border-border bg-card p-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)]">
+   739→   739→                {active ? (
+   740→   740→                  <motion.div
+   741→   741→                    key={active.entry.name}
+   742→   742→                    initial={{ opacity: 0, y: 10 }}
+   743→   743→                    animate={{ opacity: 1, y: 0 }}
+   744→   744→                    transition={{ duration: 0.25, ease: "easeOut" }}
+   745→   745→                  >
+   746→   746→                    <EntryDetail entry={active.entry} />
+   747→   747→                  </motion.div>
+   748→   748→                ) : (
+   749→   749→                  <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 text-center">
+   750→   750→                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
+   751→   751→                      <MousePointerClick className="h-7 w-7" aria-hidden />
+   752→   752→                    </span>
+   753→   753→                    <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+   754→   754→                      اختر عنصرًا من القائمة لعرض توقيعه الكامل ومعاملاته ومثاله
+   755→   755→                      العملي.
+   756→   756→                    </p>
+   757→   757→                  </div>
+   758→   758→                )}
+   759→   759→              </aside>
+   760→   760→            </motion.div>
+   761→   761→
+   762→   762→            {/* Mobile: accordion cards */}
+   763→   763→            <div className="flex flex-col gap-3 lg:hidden">
+   764→   764→              {filtered.map((f) => (
+   765→   765→                <MobileEntryCard
+   766→   766→                  key={f.entry.name}
+   767→   767→                  f={f}
+   768→   768→                  open={f.entry.name === manualId}
+   769→   769→                  onToggle={() =>
+   770→   770→                    setManualId(
+   771→   771→                      f.entry.name === manualId ? null : f.entry.name
+   772→   772→                    )
+   773→   773→                  }
+   774→   774→                />
+   775→   775→              ))}
+   776→   776→            </div>
+   777→   777→          </>
+   778→   778→        )}
+   779→   779→      </div>
+   780→   780→    </section>
+   781→   781→  );
+   782→   782→}
+   783→   783→

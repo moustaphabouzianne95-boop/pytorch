@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { CodeBlock } from "@/components/site/code-block";
 import { SectionHeader } from "@/components/site/section-header";
+import { useLanguage } from "@/lib/i18n";
 import type { DocEntry, DocGroup, DocKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -51,21 +52,29 @@ interface FlatEntry {
 type FetchStatus = "loading" | "ready" | "error";
 
 /* ─── Kind metadata: class=orange / function=emerald / method=amber / property=zinc ─── */
-const KIND_META: Record<DocKind, { label: string; cls: string }> = {
-  class: { label: "صنف", cls: "border-primary/40 bg-primary/10 text-primary" },
+const KIND_META: Record<DocKind, { labelEn: string; label: string; cls: string }> = {
+  class: {
+    labelEn: "class",
+    label: "صنف",
+    cls: "border-primary/40 bg-primary/10 text-primary",
+  },
   function: {
+    labelEn: "function",
     label: "دالة",
     cls: "border-emerald-500/35 bg-emerald-500/10 text-emerald-300",
   },
   method: {
+    labelEn: "method",
     label: "طريقة",
     cls: "border-amber-500/35 bg-amber-500/10 text-amber-300",
   },
   property: {
+    labelEn: "property",
     label: "خاصية",
     cls: "border-zinc-500/40 bg-zinc-500/10 text-zinc-300",
   },
   module: {
+    labelEn: "module",
     label: "وحدة",
     cls: "border-rose-500/35 bg-rose-500/10 text-rose-300",
   },
@@ -73,17 +82,21 @@ const KIND_META: Record<DocKind, { label: string; cls: string }> = {
 
 const isLatin = (s: string) => /^[A-Za-z0-9_.\-/]+$/.test(s);
 
-function pluralResults(n: number): string {
-  if (n === 0) return "لا نتائج";
-  if (n === 1) return "نتيجة واحدة";
-  if (n === 2) return "نتيجتان";
-  if (n <= 10) return `${n} نتائج`;
-  return `${n} نتيجة`;
+function pluralResults(
+  n: number,
+  t: (en: string, ar: string) => string
+): string {
+  if (n === 0) return t("No results", "لا نتائج");
+  if (n === 1) return t("1 result", "نتيجة واحدة");
+  if (n === 2) return t("2 results", "نتيجتان");
+  if (n <= 10) return t(`${n} results`, `${n} نتائج`);
+  return t(`${n} results`, `${n} نتيجة`);
 }
 
 /* ─── Small building blocks ─── */
 
 function KindBadge({ kind }: { kind: DocKind }) {
+  const { t } = useLanguage();
   const meta = KIND_META[kind];
   return (
     <Badge
@@ -93,12 +106,13 @@ function KindBadge({ kind }: { kind: DocKind }) {
         meta.cls
       )}
     >
-      {meta.label}
+      {t(meta.labelEn, meta.label)}
     </Badge>
   );
 }
 
 function CopyButton({ text }: { text: string }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -114,7 +128,7 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       variant="outline"
       onClick={copy}
-      aria-label="نسخ التوقيع"
+      aria-label={t("Copy signature", "نسخ التوقيع")}
       className="min-h-[44px] gap-1.5 rounded-lg border-border bg-secondary/60 px-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
     >
       {copied ? (
@@ -122,7 +136,7 @@ function CopyButton({ text }: { text: string }) {
       ) : (
         <Copy className="h-3.5 w-3.5" aria-hidden />
       )}
-      {copied ? "تم النسخ" : "نسخ"}
+      {copied ? t("Copied", "تم النسخ") : t("Copy", "نسخ")}
     </Button>
   );
 }
@@ -130,6 +144,7 @@ function CopyButton({ text }: { text: string }) {
 /* ─── Full detail view (used by desktop panel + mobile accordion) ─── */
 
 function EntryDetail({ entry }: { entry: DocEntry }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col gap-5">
       {/* Name + kind */}
@@ -144,7 +159,7 @@ function EntryDetail({ entry }: { entry: DocEntry }) {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            التوقيع الكامل
+            {t("Signature", "التوقيع الكامل")}
           </h4>
           <CopyButton text={entry.signature} />
         </div>
@@ -158,9 +173,9 @@ function EntryDetail({ entry }: { entry: DocEntry }) {
         </div>
       </div>
 
-      {/* Arabic description */}
+      {/* Description (active language) */}
       <p className="text-sm leading-relaxed text-foreground/90">
-        {entry.description}
+        {t(entry.descriptionEn, entry.description)}
       </p>
 
       {/* Params table */}
@@ -168,7 +183,7 @@ function EntryDetail({ entry }: { entry: DocEntry }) {
         <div className="flex flex-col gap-2">
           <h4 className="flex items-center gap-1.5 text-sm font-bold">
             <Braces className="h-4 w-4 text-primary" aria-hidden />
-            المعاملات
+            {t("Parameters", "المعاملات")}
             <Badge variant="secondary" className="font-mono text-[10px]">
               {entry.params.length}
             </Badge>
@@ -178,12 +193,14 @@ function EntryDetail({ entry }: { entry: DocEntry }) {
               <TableHeader>
                 <TableRow className="bg-secondary/60 hover:bg-secondary/60">
                   <TableHead className="w-[110px] px-3 text-start">
-                    الاسم
+                    {t("Name", "الاسم")}
                   </TableHead>
                   <TableHead className="w-[150px] px-3 text-start">
-                    النوع
+                    {t("Type", "النوع")}
                   </TableHead>
-                  <TableHead className="px-3 text-start">الوصف</TableHead>
+                  <TableHead className="px-3 text-start">
+                    {t("Description", "الوصف")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -202,7 +219,7 @@ function EntryDetail({ entry }: { entry: DocEntry }) {
                       {p.type}
                     </TableCell>
                     <TableCell className="whitespace-normal px-3 align-top text-xs leading-relaxed text-muted-foreground">
-                      {p.desc}
+                      {t(p.descEn, p.desc)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -220,8 +237,10 @@ function EntryDetail({ entry }: { entry: DocEntry }) {
             aria-hidden
           />
           <p className="text-sm leading-relaxed text-foreground/90">
-            <span className="font-bold text-amber-300">القيمة المرجعة: </span>
-            {entry.returns}
+            <span className="font-bold text-amber-300">
+              {t("Returns: ", "القيمة المرجعة: ")}
+            </span>
+            {t(entry.returnsEn ?? entry.returns, entry.returns)}
           </p>
         </div>
       )}
@@ -231,7 +250,7 @@ function EntryDetail({ entry }: { entry: DocEntry }) {
         <div className="flex flex-col gap-2">
           <h4 className="flex items-center gap-1.5 text-sm font-bold">
             <Terminal className="h-4 w-4 text-emerald-400" aria-hidden />
-            مثال عملي
+            {t("Example", "مثال عملي")}
           </h4>
           <CodeBlock code={entry.example} title={entry.name} compact />
         </div>
@@ -253,6 +272,7 @@ function EntryListItem({
   showGroup: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <button
       type="button"
@@ -285,7 +305,7 @@ function EntryListItem({
         </span>
       </div>
       <p className="line-clamp-1 text-xs leading-relaxed text-muted-foreground">
-        {f.entry.description}
+        {t(f.entry.descriptionEn, f.entry.description)}
       </p>
     </button>
   );
@@ -302,6 +322,7 @@ function MobileEntryCard({
   open: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div
       className={cn(
@@ -328,7 +349,7 @@ function MobileEntryCard({
             </span>
           </div>
           <p className="line-clamp-1 text-xs leading-relaxed text-muted-foreground">
-            {f.entry.description}
+            {t(f.entry.descriptionEn, f.entry.description)}
           </p>
         </div>
         <ChevronDown
@@ -362,23 +383,43 @@ function MobileEntryCard({
 /* ─── Empty / error / loading states ─── */
 
 function EmptyResults({ query, onClear }: { query: string; onClear: () => void }) {
+  const { t, lang } = useLanguage();
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-card/60 p-12 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
         <SearchX className="h-7 w-7" aria-hidden />
       </span>
-      <h3 className="text-lg font-bold">لا توجد نتائج مطابقة</h3>
+      <h3 className="text-lg font-bold">
+        {t("No matching results", "لا توجد نتائج مطابقة")}
+      </h3>
       <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-        لم نعثر على «{query}» بين الأسماء أو التوقيعات أو الأوصاف العربية.
-        جرّب كلمة أقصر، أو اسمًا لاتينيًا مثل{" "}
-        <span dir="ltr" className="font-mono text-primary">
-          Adam
-        </span>{" "}
-        أو{" "}
-        <span dir="ltr" className="font-mono text-primary">
-          unsqueeze
-        </span>
-        .
+        {lang === "en" ? (
+          <>
+            No matches for “{query}” among names, signatures, or descriptions.
+            Try a shorter term, or a Latin name like{" "}
+            <span dir="ltr" className="font-mono text-primary">
+              Adam
+            </span>{" "}
+            or{" "}
+            <span dir="ltr" className="font-mono text-primary">
+              unsqueeze
+            </span>
+            .
+          </>
+        ) : (
+          <>
+            لم نعثر على «{query}» بين الأسماء أو التوقيعات أو الأوصاف العربية.
+            جرّب كلمة أقصر، أو اسمًا لاتينيًا مثل{" "}
+            <span dir="ltr" className="font-mono text-primary">
+              Adam
+            </span>{" "}
+            أو{" "}
+            <span dir="ltr" className="font-mono text-primary">
+              unsqueeze
+            </span>
+            .
+          </>
+        )}
       </p>
       <Button
         type="button"
@@ -387,33 +428,44 @@ function EmptyResults({ query, onClear }: { query: string; onClear: () => void }
         className="min-h-[44px] gap-2"
       >
         <X className="h-4 w-4" aria-hidden />
-        مسح البحث
+        {t("Clear search", "مسح البحث")}
       </Button>
     </div>
   );
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-rose-500/25 bg-rose-500/5 p-12 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-400">
         <AlertCircle className="h-7 w-7" aria-hidden />
       </span>
-      <h3 className="text-lg font-bold">حدث خطأ أثناء التحميل</h3>
+      <h3 className="text-lg font-bold">
+        {t("Something went wrong while loading", "حدث خطأ أثناء التحميل")}
+      </h3>
       <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-        {message}
+        {t(
+          "Failed to load the API reference from the server. Check your connection and try again.",
+          message
+        )}
       </p>
       <Button type="button" onClick={onRetry} className="min-h-[44px] gap-2">
         <RotateCcw className="h-4 w-4" aria-hidden />
-        إعادة المحاولة
+        {t("Retry", "إعادة المحاولة")}
       </Button>
     </div>
   );
 }
 
 function LoadingSkeleton() {
+  const { t } = useLanguage();
   return (
-    <div className="flex flex-col gap-6">
+    <div
+      className="flex flex-col gap-6"
+      role="status"
+      aria-label={t("Loading the API reference…", "جارٍ تحميل مرجع API…")}
+    >
       <div className="flex flex-wrap gap-2">
         {Array.from({ length: 7 }).map((_, i) => (
           <Skeleton key={i} className="h-11 w-32 rounded-xl" />
@@ -440,6 +492,7 @@ function LoadingSkeleton() {
 /* ─── Main section ─── */
 
 export default function ApiExplorerSection() {
+  const { t, lang, isRtl } = useLanguage();
   const [status, setStatus] = useState<FetchStatus>("loading");
   const [groups, setGroups] = useState<DocGroup[] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -503,24 +556,33 @@ export default function ApiExplorerSection() {
   const flat = useMemo<FlatEntry[]>(
     () =>
       (groups ?? []).flatMap((g) =>
-        g.entries.map((e) => ({ entry: e, groupId: g.id, groupName: g.name }))
+        g.entries.map((e) => ({
+          entry: e,
+          groupId: g.id,
+          groupName: lang === "en" && g.nameEn ? g.nameEn : g.name,
+        }))
       ),
-    [groups]
+    [groups, lang]
   );
 
-  /* Instant search: name + signature + Arabic description */
+  /* Instant search: name + signature + description in the active language */
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const needle = lang === "en" ? q : query.trim();
     return flat.filter((f) => {
       if (activeGroup !== "all" && f.groupId !== activeGroup) return false;
       if (!q) return true;
+      const desc =
+        lang === "en"
+          ? f.entry.descriptionEn.toLowerCase()
+          : f.entry.description;
       return (
         f.entry.name.toLowerCase().includes(q) ||
         f.entry.signature.toLowerCase().includes(q) ||
-        f.entry.description.includes(query.trim())
+        desc.includes(needle)
       );
     });
-  }, [flat, activeGroup, query]);
+  }, [flat, activeGroup, query, lang]);
 
   /* Displayed entry: explicit pick wins; otherwise fall back to the first result.
      Pure derivation — no selection effect needed. */
@@ -536,20 +598,20 @@ export default function ApiExplorerSection() {
 
   const groupTabs = useMemo(
     () => [
-      { id: "all", name: "الكل", count: flat.length },
+      { id: "all", name: t("All", "الكل"), count: flat.length },
       ...(groups ?? []).map((g) => ({
         id: g.id,
-        name: g.name,
+        name: t(g.nameEn ?? g.name, g.name),
         count: g.entries.length,
       })),
     ],
-    [groups, flat.length]
+    [groups, flat.length, t]
   );
 
   const activeGroupDesc =
     activeGroup === "all"
       ? null
-      : (groups ?? []).find((g) => g.id === activeGroup)?.description;
+      : ((groups ?? []).find((g) => g.id === activeGroup) ?? null);
 
   const clearSearch = () => {
     setQuery("");
@@ -569,7 +631,10 @@ export default function ApiExplorerSection() {
   };
 
   return (
-    <section className="relative overflow-hidden py-20" aria-label="مرجع PyTorch API">
+    <section
+      className="relative overflow-hidden py-20"
+      aria-label={t("PyTorch API reference", "مرجع PyTorch API")}
+    >
       {/* Soft ambient glow */}
       <div
         aria-hidden
@@ -580,9 +645,12 @@ export default function ApiExplorerSection() {
         {/* Header */}
         <motion.div {...fadeUp}>
           <SectionHeader
-            badge="مرجع قابل للبحث"
-            title="مستكشف PyTorch API"
-            description="توثيق تفاعلي لأكثر من 60 دالة وصنفًا عبر torch.Tensor و torch.autograd و torch.nn و torch.optim و torch.utils.data — بحث فوري بالاسم والتوقيع والشرح العربي، مع أمثلة جاهزة للنسخ."
+            badge={t("Searchable reference", "مرجع قابل للبحث")}
+            title={t("PyTorch API Explorer", "مستكشف PyTorch API")}
+            description={t(
+              "Interactive documentation for 60+ functions and classes across torch.Tensor, torch.autograd, torch.nn, torch.optim, and torch.utils.data — instant search by name, signature, or description, with copy-ready examples.",
+              "توثيق تفاعلي لأكثر من 60 دالة وصنفًا عبر torch.Tensor و torch.autograd و torch.nn و torch.optim و torch.utils.data — بحث فوري بالاسم والتوقيع والشرح العربي، مع أمثلة جاهزة للنسخ."
+            )}
             icon={BookOpen}
           />
         </motion.div>
@@ -601,15 +669,21 @@ export default function ApiExplorerSection() {
                 setQuery(e.target.value);
                 setManualId(undefined);
               }}
-              placeholder="ابحث عن دالة أو صنف… بالاسم أو التوقيع أو الشرح العربي"
-              aria-label="بحث في مرجع PyTorch API"
+              placeholder={t(
+                "Search for a function or class… by name, signature, or description",
+                "ابحث عن دالة أو صنف… بالاسم أو التوقيع أو الشرح العربي"
+              )}
+              aria-label={t(
+                "Search the PyTorch API reference",
+                "بحث في مرجع PyTorch API"
+              )}
               className="h-14 rounded-2xl border-border bg-card ps-12 pe-24 text-base shadow-sm"
             />
             {query ? (
               <button
                 type="button"
                 onClick={clearSearch}
-                aria-label="مسح البحث"
+                aria-label={t("Clear search", "مسح البحث")}
                 className="absolute end-1.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 <X className="h-4 w-4" aria-hidden />
@@ -624,15 +698,18 @@ export default function ApiExplorerSection() {
             )}
           </div>
           <div className="mt-2 flex items-center justify-between px-1">
-            <p className="text-xs font-medium text-muted-foreground" aria-live="polite">
-              {pluralResults(filtered.length)}
+            <p
+              className="text-xs font-medium text-muted-foreground"
+              aria-live="polite"
+            >
+              {pluralResults(filtered.length, t)}
             </p>
             <p className="hidden text-xs text-muted-foreground sm:block">
-              اضغط{" "}
+              {t("Press", "اضغط")}{" "}
               <kbd className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px]">
                 /
               </kbd>{" "}
-              للانتقال السريع إلى البحث
+              {t("to jump to the search box", "للانتقال السريع إلى البحث")}
             </p>
           </div>
         </motion.div>
@@ -656,7 +733,7 @@ export default function ApiExplorerSection() {
                 )}
               >
                 <span
-                  dir={latin ? "ltr" : "rtl"}
+                  dir={latin ? "ltr" : isRtl ? "rtl" : "ltr"}
                   className={cn("text-[13px]", latin && "font-mono")}
                 >
                   {t.name}
@@ -680,13 +757,26 @@ export default function ApiExplorerSection() {
         {status === "ready" && groups && (
           <p className="mb-6 -mt-2 text-sm leading-relaxed text-muted-foreground">
             {activeGroup === "all" ? (
-              <>
-                عرض شامل لكل المجموعات —{" "}
-                <span className="font-mono text-primary">{flat.length}</span>{" "}
-                عنصرًا موثقًا بشرح عربي وأمثلة قابلة للنسخ.
-              </>
+              lang === "en" ? (
+                <>
+                  Browsing every group —{" "}
+                  <span className="font-mono text-primary">
+                    {flat.length}
+                  </span>{" "}
+                  documented entries with descriptions and copy-ready examples.
+                </>
+              ) : (
+                <>
+                  عرض شامل لكل المجموعات —{" "}
+                  <span className="font-mono text-primary">
+                    {flat.length}
+                  </span>{" "}
+                  عنصرًا موثقًا بشرح عربي وأمثلة قابلة للنسخ.
+                </>
+              )
             ) : (
-              activeGroupDesc
+              activeGroupDesc &&
+              t(activeGroupDesc.descriptionEn, activeGroupDesc.description)
             )}
           </p>
         )}
@@ -709,13 +799,15 @@ export default function ApiExplorerSection() {
               {/* Master list */}
               <div className="overflow-hidden rounded-2xl border border-border bg-card">
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                  <h3 className="text-sm font-bold">قائمة العناصر</h3>
+                  <h3 className="text-sm font-bold">
+                    {t("Entries", "قائمة العناصر")}
+                  </h3>
                   <Badge
                     variant="secondary"
                     className="font-mono text-[11px]"
-                    dir="rtl"
+                    dir={isRtl ? "rtl" : "ltr"}
                   >
-                    {pluralResults(filtered.length)}
+                    {pluralResults(filtered.length, t)}
                   </Badge>
                 </div>
                 <div
@@ -751,8 +843,10 @@ export default function ApiExplorerSection() {
                       <MousePointerClick className="h-7 w-7" aria-hidden />
                     </span>
                     <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-                      اختر عنصرًا من القائمة لعرض توقيعه الكامل ومعاملاته ومثاله
-                      العملي.
+                      {t(
+                        "Select an entry from the list to view its full signature, parameters, and a working example.",
+                        "اختر عنصرًا من القائمة لعرض توقيعه الكامل ومعاملاته ومثاله العملي."
+                      )}
                     </p>
                   </div>
                 )}

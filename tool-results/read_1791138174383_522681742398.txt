@@ -1,0 +1,777 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→// ─── Contributions Dashboard (لوحة بيانات المساهمات) ───
+     4→     4→// Demo analytics for pytorch/pytorch. Fetches ContributionsData from
+     5→     5→// GET /api/contributions and renders KPIs, charts (recharts), a
+     6→     6→// contributors leaderboard, flaky tests and a recent-PRs feed.
+     7→     7→
+     8→     8→import { useEffect, useState, type CSSProperties } from "react";
+     9→     9→import { motion } from "framer-motion";
+    10→    10→import type { LucideIcon } from "lucide-react";
+    11→    11→import {
+    12→    12→  BarChart3,
+    13→    13→  Star,
+    14→    14→  GitFork,
+    15→    15→  Users,
+    16→    16→  CircleDot,
+    17→    17→  GitPullRequest,
+    18→    18→  ShieldCheck,
+    19→    19→  Crown,
+    20→    20→  TriangleAlert,
+    21→    21→  RefreshCw,
+    22→    22→  FlaskConical,
+    23→    23→  Tag,
+    24→    24→  ArrowUp,
+    25→    25→  ArrowDown,
+    26→    26→} from "lucide-react";
+    27→    27→import {
+    28→    28→  ResponsiveContainer,
+    29→    29→  ComposedChart,
+    30→    30→  Area,
+    31→    31→  LineChart,
+    32→    32→  Line,
+    33→    33→  BarChart,
+    34→    34→  Bar,
+    35→    35→  XAxis,
+    36→    36→  YAxis,
+    37→    37→  CartesianGrid,
+    38→    38→  Tooltip,
+    39→    39→  ReferenceLine,
+    40→    40→  LabelList,
+    41→    41→} from "recharts";
+    42→    42→import { SectionHeader } from "@/components/site/section-header";
+    43→    43→import { Skeleton } from "@/components/ui/skeleton";
+    44→    44→import { cn } from "@/lib/utils";
+    45→    45→import type { ContributionsData, FlakyTest, RecentPR } from "@/lib/types";
+    46→    46→
+    47→    47→// ─── Shared styling constants ───
+    48→    48→
+    49→    49→const ORANGE = "#f97316";
+    50→    50→const AMBER = "#f59e0b";
+    51→    51→const EMERALD = "#10b981";
+    52→    52→
+    53→    53→const CHART_TOOLTIP: CSSProperties = {
+    54→    54→  backgroundColor: "oklch(0.2 0.01 45)",
+    55→    55→  border: "1px solid oklch(1 0 0 / 12%)",
+    56→    56→  borderRadius: 8,
+    57→    57→  color: "oklch(0.96 0.005 80)",
+    58→    58→  fontSize: 12,
+    59→    59→  fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace",
+    60→    60→};
+    61→    61→
+    62→    62→const TOOLTIP_LABEL: CSSProperties = {
+    63→    63→  color: "oklch(0.96 0.005 80)",
+    64→    64→  fontWeight: 600,
+    65→    65→  marginBottom: 4,
+    66→    66→};
+    67→    67→
+    68→    68→const TOOLTIP_CURSOR = { fill: "oklch(1 0 0 / 6%)" };
+    69→    69→const AXIS_TICK = { fill: "oklch(0.71 0.012 70)", fontSize: 10 };
+    70→    70→const AXIS_TICK_MONO = {
+    71→    71→  fill: "oklch(0.71 0.012 70)",
+    72→    72→  fontSize: 10,
+    73→    73→  fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+    74→    74→};
+    75→    75→const AXIS_LINE = { stroke: "oklch(1 0 0 / 12%)" };
+    76→    76→const GRID_STROKE = "oklch(1 0 0 / 7%)";
+    77→    77→
+    78→    78→const fadeUp = {
+    79→    79→  initial: { opacity: 0, y: 16 },
+    80→    80→  whileInView: { opacity: 1, y: 0 },
+    81→    81→  viewport: { once: true, margin: "-60px" },
+    82→    82→  transition: { duration: 0.5, ease: "easeOut" as const },
+    83→    83→};
+    84→    84→
+    85→    85→// ─── Formatting helpers ───
+    86→    86→
+    87→    87→function trim1(v: number): string {
+    88→    88→  return v % 1 === 0 ? v.toFixed(0) : v.toFixed(1);
+    89→    89→}
+    90→    90→
+    91→    91→function fmt(n: number): string {
+    92→    92→  if (n >= 100_000) return `${trim1(n / 1000)}K`;
+    93→    93→  return n.toLocaleString("en-US");
+    94→    94→}
+    95→    95→
+    96→    96→function kfmt(v: number): string {
+    97→    97→  return v >= 1000 ? `${trim1(v / 1000)}K` : `${v}`;
+    98→    98→}
+    99→    99→
+   100→   100→// ─── KPI definitions ───
+   101→   101→
+   102→   102→type StatKey = "stars" | "forks" | "contributors" | "openIssues" | "openPRs" | "coverage";
+   103→   103→
+   104→   104→interface KpiDef {
+   105→   105→  key: StatKey;
+   106→   106→  label: string;
+   107→   107→  icon: LucideIcon;
+   108→   108→  color: string;
+   109→   109→  format: (n: number) => string;
+   110→   110→}
+   111→   111→
+   112→   112→const KPI_DEFS: KpiDef[] = [
+   113→   113→  { key: "stars", label: "نجوم GitHub", icon: Star, color: "text-amber-400", format: fmt },
+   114→   114→  { key: "forks", label: "فورك", icon: GitFork, color: "text-primary", format: fmt },
+   115→   115→  { key: "contributors", label: "مساهمون", icon: Users, color: "text-primary", format: fmt },
+   116→   116→  { key: "openIssues", label: "مشاكل مفتوحة", icon: CircleDot, color: "text-rose-400", format: fmt },
+   117→   117→  { key: "openPRs", label: "طلبات دمج مفتوحة", icon: GitPullRequest, color: "text-emerald-400", format: fmt },
+   118→   118→  {
+   119→   119→    key: "coverage",
+   120→   120→    label: "تغطية الاختبارات",
+   121→   121→    icon: ShieldCheck,
+   122→   122→    color: "text-emerald-400",
+   123→   123→    format: (n) => `${n.toFixed(1)}%`,
+   124→   124→  },
+   125→   125→];
+   126→   126→
+   127→   127→// ─── Status maps ───
+   128→   128→
+   129→   129→const FLAKY_STATUS: Record<FlakyTest["status"], { label: string; className: string }> = {
+   130→   130→  investigating: { label: "يُحقَّق", className: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
+   131→   131→  open: { label: "مفتوح", className: "border-rose-500/40 bg-rose-500/10 text-rose-400" },
+   132→   132→  fixed: { label: "أُصلح", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" },
+   133→   133→};
+   134→   134→
+   135→   135→const PR_STATUS: Record<RecentPR["status"], { label: string; className: string; dot: string }> = {
+   136→   136→  merged: { label: "مدموج", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400", dot: "bg-emerald-400" },
+   137→   137→  open: { label: "مفتوح", className: "border-amber-500/40 bg-amber-500/10 text-amber-400", dot: "bg-amber-400" },
+   138→   138→};
+   139→   139→
+   140→   140→function rateTone(rate: number): { bar: string; text: string; label: string } {
+   141→   141→  const pct = rate * 100;
+   142→   142→  if (pct < 2) return { bar: "bg-emerald-500", text: "text-emerald-400", label: "مستقر" };
+   143→   143→  if (pct <= 3) return { bar: "bg-amber-500", text: "text-amber-400", label: "متقلب نوعًا" };
+   144→   144→  return { bar: "bg-rose-500", text: "text-rose-400", label: "متقلب" };
+   145→   145→}
+   146→   146→
+   147→   147→// ─── Avatar gradients (deterministic, warm palette) ───
+   148→   148→
+   149→   149→const AVATAR_GRADS = [
+   150→   150→  "from-orange-500 to-amber-700",
+   151→   151→  "from-amber-500 to-orange-700",
+   152→   152→  "from-orange-600 to-rose-700",
+   153→   153→  "from-amber-600 to-rose-600",
+   154→   154→  "from-rose-500 to-orange-600",
+   155→   155→  "from-yellow-600 to-orange-600",
+   156→   156→];
+   157→   157→
+   158→   158→function avatarGrad(handle: string): string {
+   159→   159→  let h = 0;
+   160→   160→  for (let i = 0; i < handle.length; i++) h = (h * 31 + handle.charCodeAt(i)) >>> 0;
+   161→   161→  return AVATAR_GRADS[h % AVATAR_GRADS.length];
+   162→   162→}
+   163→   163→
+   164→   164→// ─── Small building blocks ───
+   165→   165→
+   166→   166→function LegendChip({ label, color, dashed }: { label: string; color: string; dashed?: boolean }) {
+   167→   167→  return (
+   168→   168→    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+   169→   169→      {dashed ? (
+   170→   170→        <span aria-hidden className="h-0 w-4 border-t-2 border-dashed" style={{ borderColor: color }} />
+   171→   171→      ) : (
+   172→   172→        <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+   173→   173→      )}
+   174→   174→      {label}
+   175→   175→    </span>
+   176→   176→  );
+   177→   177→}
+   178→   178→
+   179→   179→function AreaChip({ label }: { label: string }) {
+   180→   180→  return (
+   181→   181→    <span
+   182→   182→      dir="ltr"
+   183→   183→      className="inline-block max-w-[9rem] truncate rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-secondary-foreground/80"
+   184→   184→    >
+   185→   185→      {label}
+   186→   186→    </span>
+   187→   187→  );
+   188→   188→}
+   189→   189→
+   190→   190→function CardHeader({
+   191→   191→  icon: Icon,
+   192→   192→  title,
+   193→   193→  hint,
+   194→   194→  count,
+   195→   195→}: {
+   196→   196→  icon: LucideIcon;
+   197→   197→  title: string;
+   198→   198→  hint: string;
+   199→   199→  count?: string;
+   200→   200→}) {
+   201→   201→  return (
+   202→   202→    <div className="mb-3">
+   203→   203→      <div className="flex items-center justify-between gap-2">
+   204→   204→        <h3 className="flex items-center gap-2 text-base font-bold">
+   205→   205→          <Icon className="h-4 w-4 text-primary" aria-hidden />
+   206→   206→          {title}
+   207→   207→        </h3>
+   208→   208→        {count && (
+   209→   209→          <span className="rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+   210→   210→            {count}
+   211→   211→          </span>
+   212→   212→        )}
+   213→   213→      </div>
+   214→   214→      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{hint}</p>
+   215→   215→    </div>
+   216→   216→  );
+   217→   217→}
+   218→   218→
+   219→   219→// ─── Skeleton (loading state) ───
+   220→   220→
+   221→   221→function DashboardSkeleton() {
+   222→   222→  return (
+   223→   223→    <div aria-hidden>
+   224→   224→      <div className="mb-4 flex gap-2">
+   225→   225→        <Skeleton className="h-6 w-44 rounded-full" />
+   226→   226→        <Skeleton className="h-6 w-36 rounded-full" />
+   227→   227→      </div>
+   228→   228→      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+   229→   229→        {Array.from({ length: 6 }).map((_, i) => (
+   230→   230→          <div key={i} className="rounded-2xl border border-border bg-card p-4">
+   231→   231→            <Skeleton className="h-3.5 w-20" />
+   232→   232→            <Skeleton className="mt-3 h-7 w-16" />
+   233→   233→          </div>
+   234→   234→        ))}
+   235→   235→      </div>
+   236→   236→      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+   237→   237→        <div className="rounded-2xl border border-border bg-card p-6 lg:col-span-2">
+   238→   238→          <Skeleton className="h-5 w-44" />
+   239→   239→          <Skeleton className="mt-6 h-[280px] w-full" />
+   240→   240→        </div>
+   241→   241→        <div className="rounded-2xl border border-border bg-card p-6 lg:row-span-2">
+   242→   242→          <Skeleton className="h-5 w-40" />
+   243→   243→          <Skeleton className="mt-6 h-[340px] w-full" />
+   244→   244→        </div>
+   245→   245→        <div className="rounded-2xl border border-border bg-card p-6 lg:col-span-2">
+   246→   246→          <Skeleton className="h-5 w-36" />
+   247→   247→          <Skeleton className="mt-6 h-[220px] w-full" />
+   248→   248→        </div>
+   249→   249→      </div>
+   250→   250→      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+   251→   251→        {Array.from({ length: 3 }).map((_, i) => (
+   252→   252→          <div key={i} className="rounded-2xl border border-border bg-card p-6">
+   253→   253→            <Skeleton className="h-5 w-36" />
+   254→   254→            <div className="mt-5 flex flex-col gap-4">
+   255→   255→              {Array.from({ length: 5 }).map((_, j) => (
+   256→   256→                <Skeleton key={j} className="h-9 w-full" />
+   257→   257→              ))}
+   258→   258→            </div>
+   259→   259→          </div>
+   260→   260→        ))}
+   261→   261→      </div>
+   262→   262→    </div>
+   263→   263→  );
+   264→   264→}
+   265→   265→
+   266→   266→// ─── Error state ───
+   267→   267→
+   268→   268→function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+   269→   269→  return (
+   270→   270→    <motion.div
+   271→   271→      {...fadeUp}
+   272→   272→      role="alert"
+   273→   273→      className="mx-auto flex max-w-xl flex-col items-center gap-4 rounded-2xl border border-rose-500/30 bg-card p-10 text-center"
+   274→   274→    >
+   275→   275→      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10">
+   276→   276→        <TriangleAlert className="h-7 w-7 text-rose-400" aria-hidden />
+   277→   277→      </span>
+   278→   278→      <h3 className="text-lg font-bold">تعذّر تحميل بيانات اللوحة</h3>
+   279→   279→      <p className="text-sm leading-relaxed text-muted-foreground">
+   280→   280→        حدث خطأ أثناء جلب بيانات المساهمات من الخادم
+   281→   281→        <span className="mx-1 font-mono text-rose-400" dir="ltr">
+   282→   282→          ({message})
+   283→   283→        </span>
+   284→   284→        — تحقّق من الاتصال ثم أعد المحاولة.
+   285→   285→      </p>
+   286→   286→      <button
+   287→   287→        type="button"
+   288→   288→        onClick={onRetry}
+   289→   289→        className="mt-1 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
+   290→   290→      >
+   291→   291→        <RefreshCw className="h-4 w-4" aria-hidden />
+   292→   292→        إعادة المحاولة
+   293→   293→      </button>
+   294→   294→    </motion.div>
+   295→   295→  );
+   296→   296→}
+   297→   297→
+   298→   298→// ─── Main dashboard content ───
+   299→   299→
+   300→   300→function DashboardContent({ data }: { data: ContributionsData }) {
+   301→   301→  const { stats, weekly, issuesByArea, contributors, coverage, flakyTests, recentPRs } = data;
+   302→   302→
+   303→   303→  return (
+   304→   304→    <div>
+   305→   305→      {/* Demo-data honesty badge + release chip */}
+   306→   306→      <motion.div {...fadeUp} className="mb-4 flex flex-wrap items-center gap-2">
+   307→   307→        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-400">
+   308→   308→          <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+   309→   309→          بيانات تجريبية — ليست حية
+   310→   310→        </span>
+   311→   311→        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
+   312→   312→          <Tag className="h-3.5 w-3.5 text-primary" aria-hidden />
+   313→   313→          آخر إصدار
+   314→   314→          <span className="font-mono font-semibold text-primary" dir="ltr">
+   315→   315→            {stats.release}
+   316→   316→          </span>
+   317→   317→        </span>
+   318→   318→      </motion.div>
+   319→   319→
+   320→   320→      {/* ─── KPI row ─── */}
+   321→   321→      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6" role="list" aria-label="مؤشرات الأداء الرئيسية">
+   322→   322→        {KPI_DEFS.map((k, i) => (
+   323→   323→          <motion.div
+   324→   324→            key={k.key}
+   325→   325→            {...fadeUp}
+   326→   326→            transition={{ ...fadeUp.transition, delay: i * 0.04 }}
+   327→   327→            role="listitem"
+   328→   328→            className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40 sm:p-5"
+   329→   329→          >
+   330→   330→            <div className="flex items-center justify-between gap-2">
+   331→   331→              <span className="text-xs font-medium text-muted-foreground">{k.label}</span>
+   332→   332→              <k.icon className={cn("h-4 w-4 shrink-0", k.color)} aria-hidden />
+   333→   333→            </div>
+   334→   334→            <p className="mt-2 font-mono text-xl font-bold text-foreground sm:text-2xl" dir="ltr">
+   335→   335→              {k.format(stats[k.key])}
+   336→   336→            </p>
+   337→   337→          </motion.div>
+   338→   338→        ))}
+   339→   339→      </div>
+   340→   340→
+   341→   341→      {/* ─── Charts grid: weekly + coverage (left) / issues by area (right) ─── */}
+   342→   342→      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+   343→   343→        {/* Weekly activity */}
+   344→   344→        <motion.article
+   345→   345→          {...fadeUp}
+   346→   346→          className="rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30 lg:col-span-2"
+   347→   347→        >
+   348→   348→          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+   349→   349→            <div>
+   350→   350→              <h3 className="text-base font-bold">النشاط الأسبوعي</h3>
+   351→   351→              <p className="mt-0.5 text-xs text-muted-foreground">
+   352→   352→                كوميتات وطلبات دمج ومراجعات عبر آخر 30 أسبوعًا في{" "}
+   353→   353→                <span className="font-mono text-primary/80" dir="ltr">
+   354→   354→                  pytorch/pytorch
+   355→   355→                </span>
+   356→   356→              </p>
+   357→   357→            </div>
+   358→   358→            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+   359→   359→              <LegendChip label="كوميتات" color={ORANGE} />
+   360→   360→              <LegendChip label="طلبات الدمج" color={EMERALD} />
+   361→   361→              <LegendChip label="مراجعات" color={AMBER} dashed />
+   362→   362→            </div>
+   363→   363→          </div>
+   364→   364→          <div dir="ltr" className="h-[280px] w-full">
+   365→   365→            <ResponsiveContainer width="100%" height="100%">
+   366→   366→              <ComposedChart data={weekly} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+   367→   367→                <defs>
+   368→   368→                  <linearGradient id="dash-grad-commits" x1="0" y1="0" x2="0" y2="1">
+   369→   369→                    <stop offset="0%" stopColor={ORANGE} stopOpacity={0.35} />
+   370→   370→                    <stop offset="100%" stopColor={ORANGE} stopOpacity={0.02} />
+   371→   371→                  </linearGradient>
+   372→   372→                </defs>
+   373→   373→                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+   374→   374→                <XAxis
+   375→   375→                  dataKey="week"
+   376→   376→                  tick={AXIS_TICK}
+   377→   377→                  tickLine={false}
+   378→   378→                  axisLine={AXIS_LINE}
+   379→   379→                  interval={5}
+   380→   380→                  tickMargin={8}
+   381→   381→                />
+   382→   382→                <YAxis
+   383→   383→                  tick={AXIS_TICK}
+   384→   384→                  tickLine={false}
+   385→   385→                  axisLine={false}
+   386→   386→                  width={38}
+   387→   387→                  tickFormatter={kfmt}
+   388→   388→                />
+   389→   389→                <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={TOOLTIP_LABEL} cursor={TOOLTIP_CURSOR} />
+   390→   390→                <Area
+   391→   391→                  type="monotone"
+   392→   392→                  dataKey="commits"
+   393→   393→                  name="كوميتات"
+   394→   394→                  stroke={ORANGE}
+   395→   395→                  strokeWidth={2}
+   396→   396→                  fill="url(#dash-grad-commits)"
+   397→   397→                />
+   398→   398→                <Line type="monotone" dataKey="prs" name="طلبات الدمج" stroke={EMERALD} strokeWidth={2} dot={false} />
+   399→   399→                <Line
+   400→   400→                  type="monotone"
+   401→   401→                  dataKey="reviews"
+   402→   402→                  name="مراجعات"
+   403→   403→                  stroke={AMBER}
+   404→   404→                  strokeWidth={1.5}
+   405→   405→                  strokeDasharray="5 4"
+   406→   406→                  dot={false}
+   407→   407→                />
+   408→   408→              </ComposedChart>
+   409→   409→            </ResponsiveContainer>
+   410→   410→          </div>
+   411→   411→        </motion.article>
+   412→   412→
+   413→   413→        {/* Issues by area (spans both rows) */}
+   414→   414→        <motion.article
+   415→   415→          {...fadeUp}
+   416→   416→          transition={{ ...fadeUp.transition, delay: 0.1 }}
+   417→   417→          className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30 lg:row-span-2"
+   418→   418→        >
+   419→   419→          <div className="mb-4">
+   420→   420→            <h3 className="text-base font-bold">المشاكل حسب المجال</h3>
+   421→   421→            <p className="mt-0.5 text-xs text-muted-foreground">
+   422→   422→              عدد المشاكل المفتوحة لكل مجال، مع اتجاه التغيّر مقارنةً بالشهر الماضي.
+   423→   423→            </p>
+   424→   424→          </div>
+   425→   425→          <div dir="ltr" className="h-[340px] w-full flex-1">
+   426→   426→            <ResponsiveContainer width="100%" height="100%">
+   427→   427→              <BarChart data={issuesByArea} layout="vertical" margin={{ top: 4, right: 36, left: 4, bottom: 4 }}>
+   428→   428→                <defs>
+   429→   429→                  <linearGradient id="dash-grad-issues" x1="0" y1="0" x2="1" y2="0">
+   430→   430→                    <stop offset="0%" stopColor="#ee4c2c" />
+   431→   431→                    <stop offset="100%" stopColor={ORANGE} />
+   432→   432→                  </linearGradient>
+   433→   433→                </defs>
+   434→   434→                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
+   435→   435→                <XAxis type="number" tick={AXIS_TICK} tickLine={false} axisLine={AXIS_LINE} allowDecimals={false} />
+   436→   436→                <YAxis
+   437→   437→                  type="category"
+   438→   438→                  dataKey="area"
+   439→   439→                  tick={AXIS_TICK_MONO}
+   440→   440→                  tickLine={false}
+   441→   441→                  axisLine={false}
+   442→   442→                  width={112}
+   443→   443→                />
+   444→   444→                <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={TOOLTIP_LABEL} cursor={TOOLTIP_CURSOR} />
+   445→   445→                <Bar
+   446→   446→                  dataKey="count"
+   447→   447→                  name="مشاكل مفتوحة"
+   448→   448→                  fill="url(#dash-grad-issues)"
+   449→   449→                  radius={[0, 4, 4, 0]}
+   450→   450→                  barSize={14}
+   451→   451→                >
+   452→   452→                  <LabelList dataKey="count" position="right" style={{ fill: "oklch(0.71 0.012 70)", fontSize: 10 }} />
+   453→   453→                </Bar>
+   454→   454→              </BarChart>
+   455→   455→            </ResponsiveContainer>
+   456→   456→          </div>
+   457→   457→          {/* Trend badges */}
+   458→   458→          <div dir="ltr" className="mt-4 flex flex-wrap gap-1.5 border-t border-border/60 pt-4">
+   459→   459→            {issuesByArea.map((a) => (
+   460→   460→              <span
+   461→   461→                key={a.area}
+   462→   462→                title={a.trend >= 0 ? "زيادة في عدد المشاكل" : "خفض في عدد المشاكل"}
+   463→   463→                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-2 py-1 font-mono text-[10px] text-muted-foreground"
+   464→   464→              >
+   465→   465→                {a.area}
+   466→   466→                <span
+   467→   467→                  className={cn(
+   468→   468→                    "inline-flex items-center gap-0.5 font-semibold",
+   469→   469→                    a.trend >= 0 ? "text-rose-400" : "text-emerald-400"
+   470→   470→                  )}
+   471→   471→                >
+   472→   472→                  {a.trend >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+   473→   473→                  {Math.abs(a.trend)}%
+   474→   474→                </span>
+   475→   475→              </span>
+   476→   476→            ))}
+   477→   477→          </div>
+   478→   478→        </motion.article>
+   479→   479→
+   480→   480→        {/* Coverage trend */}
+   481→   481→        <motion.article
+   482→   482→          {...fadeUp}
+   483→   483→          transition={{ ...fadeUp.transition, delay: 0.15 }}
+   484→   484→          className="rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30 lg:col-span-2"
+   485→   485→        >
+   486→   486→          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+   487→   487→            <div>
+   488→   488→              <h3 className="text-base font-bold">تغطية الاختبارات</h3>
+   489→   489→              <p className="mt-0.5 text-xs text-muted-foreground">
+   490→   490→                النسبة الشهرية مقابل الهدف <span className="font-mono" dir="ltr">88%</span> — تتّجه للأفضل.
+   491→   491→              </p>
+   492→   492→            </div>
+   493→   493→            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+   494→   494→              <LegendChip label="التغطية" color={ORANGE} />
+   495→   495→              <LegendChip label="الهدف" color={AMBER} dashed />
+   496→   496→            </div>
+   497→   497→          </div>
+   498→   498→          <div dir="ltr" className="h-[220px] w-full">
+   499→   499→            <ResponsiveContainer width="100%" height="100%">
+   500→   500→              <LineChart data={coverage} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+   501→   501→                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+   502→   502→                <XAxis
+   503→   503→                  dataKey="month"
+   504→   504→                  tick={AXIS_TICK}
+   505→   505→                  tickLine={false}
+   506→   506→                  axisLine={AXIS_LINE}
+   507→   507→                  interval={1}
+   508→   508→                  tickMargin={8}
+   509→   509→                />
+   510→   510→                <YAxis
+   511→   511→                  domain={[80, 92]}
+   512→   512→                  ticks={[80, 84, 88, 92]}
+   513→   513→                  tick={AXIS_TICK}
+   514→   514→                  tickLine={false}
+   515→   515→                  axisLine={false}
+   516→   516→                  width={38}
+   517→   517→                  tickFormatter={(v: number) => `${v}%`}
+   518→   518→                />
+   519→   519→                <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={TOOLTIP_LABEL} cursor={TOOLTIP_CURSOR} />
+   520→   520→                <ReferenceLine
+   521→   521→                  y={88}
+   522→   522→                  stroke={AMBER}
+   523→   523→                  strokeDasharray="6 4"
+   524→   524→                  label={{ value: "هدف 88%", fill: AMBER, fontSize: 10, position: "insideTopRight" }}
+   525→   525→                />
+   526→   526→                <Line
+   527→   527→                  type="monotone"
+   528→   528→                  dataKey="coverage"
+   529→   529→                  name="التغطية %"
+   530→   530→                  stroke={ORANGE}
+   531→   531→                  strokeWidth={2.5}
+   532→   532→                  dot={{ r: 3, fill: ORANGE, strokeWidth: 0 }}
+   533→   533→                  activeDot={{ r: 5 }}
+   534→   534→                />
+   535→   535→              </LineChart>
+   536→   536→            </ResponsiveContainer>
+   537→   537→          </div>
+   538→   538→        </motion.article>
+   539→   539→      </div>
+   540→   540→
+   541→   541→      {/* ─── Bottom row: contributors / flaky tests / recent PRs ─── */}
+   542→   542→      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+   543→   543→        {/* Contributors leaderboard */}
+   544→   544→        <motion.section
+   545→   545→          {...fadeUp}
+   546→   546→          aria-label="لوحة صدارة المساهمين"
+   547→   547→          className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30"
+   548→   548→        >
+   549→   549→          <CardHeader
+   550→   550→            icon={Users}
+   551→   551→            title="لوحة صدارة المساهمين"
+   552→   552→            hint="الأكثر نشاطًا حسب الكوميتات والمراجعات."
+   553→   553→            count={`أفضل ${contributors.length}`}
+   554→   554→          />
+   555→   555→          <ul className="-mx-2 max-h-[24rem] flex-1 list-none overflow-y-auto px-2 scrollbar-thin">
+   556→   556→            {contributors.map((c, i) => (
+   557→   557→              <li
+   558→   558→                key={c.handle}
+   559→   559→                className="flex items-center gap-3 border-b border-border/60 py-3 last:border-0"
+   560→   560→              >
+   561→   561→                <span className="w-6 shrink-0 text-center font-mono text-sm text-muted-foreground" dir="ltr">
+   562→   562→                  {i + 1}
+   563→   563→                </span>
+   564→   564→                <span
+   565→   565→                  aria-hidden
+   566→   566→                  className={cn(
+   567→   567→                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-mono text-[11px] font-bold text-white/95",
+   568→   568→                    avatarGrad(c.handle)
+   569→   569→                  )}
+   570→   570→                >
+   571→   571→                  {c.handle.slice(0, 2).toUpperCase()}
+   572→   572→                </span>
+   573→   573→                <div className="min-w-0 flex-1">
+   574→   574→                  <div className="flex items-center gap-1.5">
+   575→   575→                    <span className="truncate font-mono text-sm font-semibold text-foreground" dir="ltr">
+   576→   576→                      {c.handle}
+   577→   577→                    </span>
+   578→   578→                    {i === 0 && <Crown className="h-4 w-4 shrink-0 text-amber-400" aria-label="المساهم الأول" />}
+   579→   579→                  </div>
+   580→   580→                  <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+   581→   581→                    <span className="truncate">{c.name}</span>
+   582→   582→                    <span aria-hidden>·</span>
+   583→   583→                    <span dir="ltr" className="shrink-0 font-mono text-[10px] text-primary/70">
+   584→   584→                      {c.focus}
+   585→   585→                    </span>
+   586→   586→                  </p>
+   587→   587→                </div>
+   588→   588→                <div className="grid shrink-0 grid-cols-3 gap-2 text-center sm:gap-3">
+   589→   589→                  {(
+   590→   590→                    [
+   591→   591→                      ["كوميت", c.commits],
+   592→   592→                      ["دمج", c.prs],
+   593→   593→                      ["مراجعة", c.reviews],
+   594→   594→                    ] as const
+   595→   595→                  ).map(([label, v]) => (
+   596→   596→                    <div key={label}>
+   597→   597→                      <p className="font-mono text-xs font-semibold text-foreground sm:text-sm" dir="ltr">
+   598→   598→                        {fmt(v)}
+   599→   599→                      </p>
+   600→   600→                      <p className="text-[10px] leading-tight text-muted-foreground">{label}</p>
+   601→   601→                    </div>
+   602→   602→                  ))}
+   603→   603→                </div>
+   604→   604→              </li>
+   605→   605→            ))}
+   606→   606→          </ul>
+   607→   607→        </motion.section>
+   608→   608→
+   609→   609→        {/* Flaky tests */}
+   610→   610→        <motion.section
+   611→   611→          {...fadeUp}
+   612→   612→          transition={{ ...fadeUp.transition, delay: 0.08 }}
+   613→   613→          aria-label="اختبارات متقلبة"
+   614→   614→          className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30"
+   615→   615→        >
+   616→   616→          <CardHeader
+   617→   617→            icon={FlaskConical}
+   618→   618→            title="اختبارات متقلبة تحت المراقبة"
+   619→   619→            hint="نسبة الفشل التقديرية لكل اختبار في دورة CI."
+   620→   620→            count={`${flakyTests.length} اختبارات`}
+   621→   621→          />
+   622→   622→          <ul className="-mx-2 flex-1 list-none px-2">
+   623→   623→            {flakyTests.map((t) => {
+   624→   624→              const tone = rateTone(t.failureRate);
+   625→   625→              const status = FLAKY_STATUS[t.status];
+   626→   626→              return (
+   627→   627→                <li key={t.name} className="border-b border-border/60 py-3 last:border-0">
+   628→   628→                  <div className="flex items-center justify-between gap-2">
+   629→   629→                    <span
+   630→   630→                      className="min-w-0 truncate font-mono text-xs text-foreground"
+   631→   631→                      dir="ltr"
+   632→   632→                      title={t.name}
+   633→   633→                    >
+   634→   634→                      {t.name}
+   635→   635→                    </span>
+   636→   636→                    <span
+   637→   637→                      className={cn(
+   638→   638→                        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+   639→   639→                        status.className
+   640→   640→                      )}
+   641→   641→                    >
+   642→   642→                      {status.label}
+   643→   643→                    </span>
+   644→   644→                  </div>
+   645→   645→                  <div className="mt-2 flex items-center gap-2">
+   646→   646→                    <AreaChip label={t.area} />
+   647→   647→                    <div
+   648→   648→                      className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary"
+   649→   649→                      role="meter"
+   650→   650→                      aria-valuenow={Math.round(t.failureRate * 1000) / 10}
+   651→   651→                      aria-valuemin={0}
+   652→   652→                      aria-valuemax={100}
+   653→   653→                      aria-label={`نسبة فشل ${t.name}`}
+   654→   654→                    >
+   655→   655→                      <div
+   656→   656→                        className={cn("h-full rounded-full", tone.bar)}
+   657→   657→                        style={{ width: `${Math.min(100, t.failureRate * 2000)}%` }}
+   658→   658→                      />
+   659→   659→                    </div>
+   660→   660→                    <span className={cn("shrink-0 font-mono text-xs font-semibold", tone.text)} dir="ltr">
+   661→   661→                      {(t.failureRate * 100).toFixed(1)}%
+   662→   662→                    </span>
+   663→   663→                  </div>
+   664→   664→                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+   665→   665→                    آخر فشل: {t.lastFailed} · <span className={tone.text}>{tone.label}</span>
+   666→   666→                  </p>
+   667→   667→                </li>
+   668→   668→              );
+   669→   669→            })}
+   670→   670→          </ul>
+   671→   671→        </motion.section>
+   672→   672→
+   673→   673→        {/* Recent PRs */}
+   674→   674→        <motion.section
+   675→   675→          {...fadeUp}
+   676→   676→          transition={{ ...fadeUp.transition, delay: 0.16 }}
+   677→   677→          aria-label="أحدث طلبات الدمج"
+   678→   678→          className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/30"
+   679→   679→        >
+   680→   680→          <CardHeader
+   681→   681→            icon={GitPullRequest}
+   682→   682→            title="أحدث طلبات الدمج"
+   683→   683→            hint="آخر النشاطات في المستودع مع حجم التغييرات."
+   684→   684→            count={`${recentPRs.length} طلبات`}
+   685→   685→          />
+   686→   686→          <ul className="-mx-2 max-h-[24rem] flex-1 list-none overflow-y-auto px-2 scrollbar-thin">
+   687→   687→            {recentPRs.map((pr) => {
+   688→   688→              const status = PR_STATUS[pr.status];
+   689→   689→              return (
+   690→   690→                <li key={pr.id} className="flex items-start gap-2.5 border-b border-border/60 py-3 last:border-0">
+   691→   691→                  <span className="shrink-0 pt-0.5 font-mono text-[11px] text-muted-foreground" dir="ltr">
+   692→   692→                    #{pr.id}
+   693→   693→                  </span>
+   694→   694→                  <div className="min-w-0 flex-1">
+   695→   695→                    <p className="truncate text-sm font-medium text-foreground" title={pr.title} dir="ltr">
+   696→   696→                      {pr.title}
+   697→   697→                    </p>
+   698→   698→                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+   699→   699→                      <span className="font-mono text-xs text-primary/90" dir="ltr">
+   700→   700→                        @{pr.author}
+   701→   701→                      </span>
+   702→   702→                      <AreaChip label={pr.area} />
+   703→   703→                      <span
+   704→   704→                        className={cn(
+   705→   705→                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+   706→   706→                          status.className
+   707→   707→                        )}
+   708→   708→                      >
+   709→   709→                        <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
+   710→   710→                        {status.label}
+   711→   711→                      </span>
+   712→   712→                      <span className="text-[11px] text-muted-foreground">{pr.mergedAt}</span>
+   713→   713→                    </div>
+   714→   714→                  </div>
+   715→   715→                  <span className="shrink-0 pt-0.5 font-mono text-[11px]" dir="ltr">
+   716→   716→                    <span className="text-emerald-400">+{fmt(pr.added)}</span>{" "}
+   717→   717→                    <span className="text-rose-400">-{fmt(pr.removed)}</span>
+   718→   718→                  </span>
+   719→   719→                </li>
+   720→   720→              );
+   721→   721→            })}
+   722→   722→          </ul>
+   723→   723→        </motion.section>
+   724→   724→      </div>
+   725→   725→    </div>
+   726→   726→  );
+   727→   727→}
+   728→   728→
+   729→   729→// ─── Section entry ───
+   730→   730→
+   731→   731→export default function DashboardSection() {
+   732→   732→  type FetchState =
+   733→   733→    | { status: "loading" }
+   734→   734→    | { status: "error"; message: string }
+   735→   735→    | { status: "ok"; data: ContributionsData };
+   736→   736→
+   737→   737→  const [state, setState] = useState<FetchState>({ status: "loading" });
+   738→   738→  const [reloadKey, setReloadKey] = useState(0);
+   739→   739→
+   740→   740→  const retry = () => {
+   741→   741→    setState({ status: "loading" });
+   742→   742→    setReloadKey((k) => k + 1);
+   743→   743→  };
+   744→   744→
+   745→   745→  useEffect(() => {
+   746→   746→    const ctrl = new AbortController();
+   747→   747→
+   748→   748→    fetch("/api/contributions", { signal: ctrl.signal })
+   749→   749→      .then(async (res) => {
+   750→   750→        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+   751→   751→        return (await res.json()) as ContributionsData;
+   752→   752→      })
+   753→   753→      .then((d) => setState({ status: "ok", data: d }))
+   754→   754→      .catch((e: unknown) => {
+   755→   755→        if (e instanceof DOMException && e.name === "AbortError") return;
+   756→   756→        setState({ status: "error", message: e instanceof Error ? e.message : "network error" });
+   757→   757→      });
+   758→   758→
+   759→   759→    return () => ctrl.abort();
+   760→   760→  }, [reloadKey]);
+   761→   761→
+   762→   762→  return (
+   763→   763→    <section aria-label="لوحة بيانات المساهمات" className="mx-auto w-full max-w-7xl px-4 py-16 sm:py-20">
+   764→   764→      <SectionHeader
+   765→   765→        badge="بيانات تجريبية"
+   766→   766→        title="لوحة بيانات المساهمات"
+   767→   767→        description="نموذج واقعي لنشاط مستودع pytorch/pytorch: كوميتات أسبوعية، توزيع المشاكل، تغطية الاختبارات، لوحة صدارة المساهمين، واختبارات متقلبة — أرقام تجريبية مولّدة بأنماط قريبة من الواقع، وليست بيانات حية من GitHub."
+   768→   768→        icon={BarChart3}
+   769→   769→      />
+   770→   770→
+   771→   771→      {state.status === "loading" && <DashboardSkeleton />}
+   772→   772→      {state.status === "error" && <ErrorState message={state.message} onRetry={retry} />}
+   773→   773→      {state.status === "ok" && <DashboardContent data={state.data} />}
+   774→   774→    </section>
+   775→   775→  );
+   776→   776→}
+   777→   777→

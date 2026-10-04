@@ -37,11 +37,11 @@ export interface LossPoint {
 
 // ─── Static config tables (consumed by the UI) ───
 
-export const DATASETS: { id: DatasetId; label: string }[] = [
-  { id: "circles", label: "دائرتان" },
-  { id: "xor", label: "XOR" },
-  { id: "moons", label: "فصلان" },
-  { id: "spiral", label: "لولب" },
+export const DATASETS: { id: DatasetId; label: string; labelEn: string }[] = [
+  { id: "circles", label: "دائرتان", labelEn: "Two circles" },
+  { id: "xor", label: "XOR", labelEn: "XOR" },
+  { id: "moons", label: "فصلان", labelEn: "Two moons" },
+  { id: "spiral", label: "لولب", labelEn: "Spiral" },
 ];
 
 export const ALL_FEATURES: { key: FeatureKey; label: string; locked: boolean }[] = [
