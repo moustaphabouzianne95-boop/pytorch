@@ -98,10 +98,10 @@ export function Footer({ onNavigate }: FooterProps) {
             ).replace("{year}", String(new Date().getFullYear()))}
           </p>
           <p dir="ltr" className="font-mono">
-            Built with Next.js 16 · Tailwind 4 · Z.ai Code
+            Built with Next.js 16 · Tailwind 4 · Ms.Dev-Code
           </p>
         </div>
-      </div>
+      </div>MS
     </footer>
   );
 }
